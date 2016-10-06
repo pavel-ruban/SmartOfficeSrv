@@ -25,10 +25,7 @@ class session
         : public std::enable_shared_from_this<session>
 {
 public:
-    session(tcp::socket socket)
-            : socket_(std::move(socket))
-    {
-    }
+    session(tcp::socket socket) : socket_(std::move(socket)) {}
 
     void start()
     {
@@ -39,13 +36,16 @@ private:
     enum {
         max_length = 1024
     };
+
     char request_header[max_length];
     char request_body[max_length];
 
     void handle_request(std::size_t length) {
         std::vector<std::string> strs;
         std::vector<std::string> buf;
+
         std::string headers_s;
+
         std::map<std::string,std::string> headers;
 
         typedef std::map<std::string, int, std::less<std::string> > map_type;
@@ -65,53 +65,58 @@ private:
             std::string header(what[1].first, what[1].second);
             headers_s = header;
             std::string body(what[2].first, what[2].second);
-            int x = 1;
         }
 
         strs.clear();
         boost::split(strs,headers_s,boost::is_any_of("\n"));
 
         strs.erase(strs.end() - 1);
+
         for(std::vector<std::string>::iterator it = strs.begin(); it != strs.end(); ++it) {
             buf.clear();
             boost::split(buf,*it,boost::is_any_of(":"));
             headers[buf[0]] = buf[1].substr(1,buf[1].size());
         }
 
-        if (headers.find("node_id") == headers.end()) {  //Если запрос не содержит идентификатор.
+        // Если запрос не содержит идентификатор.
+        if (headers.find("node_id") == headers.end()) {
             std::strcpy(transmitted_data_, "status: 401\n");
         } else {
-            //Тут sql авторизация?
+            // Тут sql авторизация?
             if (headers["action"] == "call");
-            std::cout << "RING" << std::endl; //Ну типа звонок.
+
+            // Звонок.
+            std::cout << "RING" << std::endl;
             std::strcpy(transmitted_data_, "status: 200\n");
 
         }
-        int x = 100500;
-
-
     }
+
     void do_read()
     {
         auto self(shared_from_this());
-        socket_.async_read_some(boost::asio::buffer(recieved_data_, max_length),
-                                [this, self](boost::system::error_code ec, std::size_t length) {
-                                    if (!ec) {
-                                        handle_request(length);
-                                        do_write(length);
-                                    }
-                                });
+        socket_.async_read_some(
+            boost::asio::buffer(recieved_data_, max_length),
+            [this, self](boost::system::error_code ec, std::size_t length) {
+                if (!ec) {
+                    handle_request(length);
+                    do_write(length);
+                }
+            }
+        );
     }
 
     void do_write(std::size_t length)
     {
         auto self(shared_from_this());
-        boost::asio::async_write(socket_, boost::asio::buffer(transmitted_data_, max_length),
-                                 [this, self](boost::system::error_code ec, std::size_t /*length*/) {
-                                     if (!ec) {
-                                         do_read();
-                                     }
-                                 });
+        boost::asio::async_write(
+            socket_, boost::asio::buffer(transmitted_data_, max_length),
+            [this, self](boost::system::error_code ec, std::size_t length) {
+                 if (!ec) {
+                     do_read();
+                 }
+            }
+        );
     }
 
     tcp::socket socket_;
@@ -132,14 +137,16 @@ public:
 private:
     void do_accept()
     {
-        acceptor_.async_accept(socket_,
-                               [this](boost::system::error_code ec) {
-                                   if (!ec) {
-                                       std::make_shared<session>(std::move(socket_))->start();
-                                   }
+        acceptor_.async_accept(
+            socket_,
+            [this](boost::system::error_code ec) {
+                if (!ec) {
+                    std::make_shared<session>(std::move(socket_))->start();
+                }
 
-                                   do_accept();
-                               });
+                do_accept();
+            }
+        );
     }
 
     tcp::acceptor acceptor_;
@@ -150,10 +157,12 @@ int main(int argc, char* argv[])
 {
 
     try {
+        short port;
+
         boost::property_tree::ptree pt;
         boost::property_tree::ini_parser::read_ini("../include/config", pt);
         boost::asio::io_service io_service;
-        short port;
+
         std::istringstream (pt.get<std::string>("General.port")) >> port;
 
         server s(io_service, port);
