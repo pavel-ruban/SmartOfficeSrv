@@ -11,6 +11,7 @@
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/regex.hpp>
+#include <mysql++.h>
 
 using boost::asio::ip::tcp;
 using namespace std;
@@ -101,6 +102,7 @@ private:
             asio::buffer(recieved_data_, max_length),
             [this, self](system::error_code ec, size_t length) {
                 if (!ec) {
+                    cout << recieved_data_ << endl;
                     handle_request(length);
                     do_write(length);
                 }
@@ -163,22 +165,32 @@ private:
 int main(int argc, char* argv[])
 {
 
-    try {
-        short port;
+    mysqlpp::Connection conn(false);
+    conn.connect("smartoffice_srv", "localhost",
+                 "somi", "somi2016");
 
-        property_tree::ptree pt;
-        property_tree::ini_parser::read_ini("config.ini", pt);
-        asio::io_service io_service;
-
-        istringstream (pt.get<string>("General.port")) >> port;
-
-        server s(io_service, port);
-
-        io_service.run();
-    }
-    catch (std::exception &e) {
-        cerr << "Exception: " << e.what() << "\n";
-    }
+//    mysqlpp::Query query = conn.query();
+//    query << "insert into nodes (hash,ip,port)" <<
+//          " VALUES('237c8e4d3d631e60436b64206e1feb1228', '127.0.0.1', 255);";
+//
+//
+//    query.execute();
+//    try {
+//        short port;
+//
+//        property_tree::ptree pt;
+//        property_tree::ini_parser::read_ini("config.ini", pt);
+//        asio::io_service io_service;
+//
+//        istringstream (pt.get<string>("General.port")) >> port;
+//
+//        server s(io_service, port);
+//
+//        io_service.run();
+//    }
+//    catch (std::exception &e) {
+//        cerr << "Exception: " << e.what() << "\n";
+//    }
 
     return 0;
 }
