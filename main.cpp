@@ -125,6 +125,11 @@ private:
 
     char transmitted_data_[max_length];
     char recieved_data_[max_length];
+
+public:
+    void send_request(std::string request_string) {
+       // do
+    }
 };
 
 class server
@@ -162,7 +167,7 @@ int main(int argc, char* argv[])
         short port;
 
         property_tree::ptree pt;
-        property_tree::ini_parser::read_ini("../include/config", pt);
+        property_tree::ini_parser::read_ini("config.ini", pt);
         asio::io_service io_service;
 
         istringstream (pt.get<string>("General.port")) >> port;
