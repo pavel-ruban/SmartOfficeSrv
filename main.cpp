@@ -13,6 +13,8 @@
 #include <boost/algorithm/string/regex.hpp>
 
 using boost::asio::ip::tcp;
+using namespace std;
+using namespace boost;
 
 enum {
     OK = 200,
@@ -40,54 +42,54 @@ private:
     char request_header[max_length];
     char request_body[max_length];
 
-    void handle_request(std::size_t length) {
-        std::vector<std::string> strs;
-        std::vector<std::string> buf;
+    void handle_request(size_t length) {
+        vector<string> strs;
+        vector<string> buf;
 
-        std::string headers_s;
+        string headers_s;
 
-        std::map<std::string,std::string> headers;
+        map<string,string> headers;
 
-        typedef std::map<std::string, int, std::less<std::string> > map_type;
-        boost::regex expression("^(.+(?:\r\n|\n|\r))+(?:\r\n|\n|\r)(.*)$");
+        typedef map<string, int, less<string> > map_type;
+        regex expression("^(.+(?:\r\n|\n|\r))+(?:\r\n|\n|\r)(.*)$");
 
-        std::string::const_iterator start, end;
-        std::string data(recieved_data_);
+        string::const_iterator start, end;
+        string data(recieved_data_);
 
         start = data.begin();
         end = data.begin() + length;
 
-        boost::match_results<std::string::const_iterator> what;
-        boost::match_flag_type flags = boost::regex_constants::match_single_line | boost::regex_constants::match_stop;
+        match_results<string::const_iterator> what;
+        match_flag_type flags = regex_constants::match_single_line | regex_constants::match_stop;
 
         while (regex_search(start, end, what, expression, flags)) {
             start = what[0].second;
-            std::string header(what[1].first, what[1].second);
+            string header(what[1].first, what[1].second);
             headers_s = header;
-            std::string body(what[2].first, what[2].second);
+            string body(what[2].first, what[2].second);
         }
 
         strs.clear();
-        boost::split(strs,headers_s,boost::is_any_of("\n"));
+        split(strs,headers_s,is_any_of("\n"));
 
         strs.erase(strs.end() - 1);
 
-        for(std::vector<std::string>::iterator it = strs.begin(); it != strs.end(); ++it) {
+        for(vector<string>::iterator it = strs.begin(); it != strs.end(); ++it) {
             buf.clear();
-            boost::split(buf,*it,boost::is_any_of(":"));
+            split(buf,*it,is_any_of(":"));
             headers[buf[0]] = buf[1].substr(1,buf[1].size());
         }
 
         // Если запрос не содержит идентификатор.
         if (headers.find("node_id") == headers.end()) {
-            std::strcpy(transmitted_data_, "status: 401\n");
+            strcpy(transmitted_data_, "status: 401\n");
         } else {
             // Тут sql авторизация?
             if (headers["action"] == "call");
 
             // Звонок.
-            std::cout << "RING" << std::endl;
-            std::strcpy(transmitted_data_, "status: 200\n");
+            cout << "RING" << endl;
+            strcpy(transmitted_data_, "status: 200\n");
 
         }
     }
@@ -96,8 +98,8 @@ private:
     {
         auto self(shared_from_this());
         socket_.async_read_some(
-            boost::asio::buffer(recieved_data_, max_length),
-            [this, self](boost::system::error_code ec, std::size_t length) {
+            asio::buffer(recieved_data_, max_length),
+            [this, self](system::error_code ec, size_t length) {
                 if (!ec) {
                     handle_request(length);
                     do_write(length);
@@ -106,12 +108,12 @@ private:
         );
     }
 
-    void do_write(std::size_t length)
+    void do_write(size_t length)
     {
         auto self(shared_from_this());
-        boost::asio::async_write(
-            socket_, boost::asio::buffer(transmitted_data_, max_length),
-            [this, self](boost::system::error_code ec, std::size_t length) {
+        asio::async_write(
+            socket_, asio::buffer(transmitted_data_, max_length),
+            [this, self](system::error_code ec, size_t length) {
                  if (!ec) {
                      do_read();
                  }
@@ -128,7 +130,7 @@ private:
 class server
 {
 public:
-    server(boost::asio::io_service& io_service, short port)
+    server(asio::io_service& io_service, short port)
             : acceptor_(io_service, tcp::endpoint(tcp::v4(), port)),
               socket_(io_service) {
         do_accept();
@@ -139,7 +141,7 @@ private:
     {
         acceptor_.async_accept(
             socket_,
-            [this](boost::system::error_code ec) {
+            [this](system::error_code ec) {
                 if (!ec) {
                     std::make_shared<session>(std::move(socket_))->start();
                 }
@@ -159,18 +161,18 @@ int main(int argc, char* argv[])
     try {
         short port;
 
-        boost::property_tree::ptree pt;
-        boost::property_tree::ini_parser::read_ini("../include/config", pt);
-        boost::asio::io_service io_service;
+        property_tree::ptree pt;
+        property_tree::ini_parser::read_ini("../include/config", pt);
+        asio::io_service io_service;
 
-        std::istringstream (pt.get<std::string>("General.port")) >> port;
+        istringstream (pt.get<string>("General.port")) >> port;
 
         server s(io_service, port);
 
         io_service.run();
     }
-    catch (std::exception& e) {
-        std::cerr << "Exception: " << e.what() << "\n";
+    catch (std::exception &e) {
+        cerr << "Exception: " << e.what() << "\n";
     }
 
     return 0;
