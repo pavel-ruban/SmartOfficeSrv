@@ -7,7 +7,7 @@ set (CMAKE_CXX_STANDARD 11)
 set(SOURCE_FILES main.cpp smartoffice-srv.h)
 add_executable(smartoffice_srv ${SOURCE_FILES})
 
-find_package(Boost REQUIRED COMPONENTS system regex)
+find_package(Boost REQUIRED COMPONENTS system regex thread)
 
 if (Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})

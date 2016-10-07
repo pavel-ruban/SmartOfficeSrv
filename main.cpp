@@ -12,6 +12,8 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/regex.hpp>
 #include <mysql++.h>
+#include <boost/array.hpp>
+#include <boost/thread.hpp>
 
 using boost::asio::ip::tcp;
 using namespace std;
@@ -23,12 +25,15 @@ enum {
     UNAUTHORIZED = 401,
     INTERNAL_SERVER_ERROR = 500
 };
-
 class session
         : public std::enable_shared_from_this<session>
 {
 public:
-    session(tcp::socket socket) : socket_(std::move(socket)) {}
+    string ip;
+    session(tcp::socket socket) : socket_(std::move(socket)) {
+        memset(transmitted_data_, 0, sizeof(transmitted_data_));
+        memset(recieved_data_, 0, sizeof(recieved_data_));
+    }
 
     void start()
     {
@@ -102,6 +107,7 @@ private:
             asio::buffer(recieved_data_, max_length),
             [this, self](system::error_code ec, size_t length) {
                 if (!ec) {
+                    cout << "Recieved from: " << socket_.remote_endpoint().address().to_string() << endl;
                     cout << recieved_data_ << endl;
                     handle_request(length);
                     do_write(length);
@@ -122,16 +128,12 @@ private:
             }
         );
     }
-
     tcp::socket socket_;
-
     char transmitted_data_[max_length];
     char recieved_data_[max_length];
 
 public:
-    void send_request(std::string request_string) {
-       // do
-    }
+
 };
 
 class server
@@ -143,9 +145,33 @@ public:
         do_accept();
     }
 
+    void send_message(std::string host, int port, std::string message) {
+        boost::system::error_code ec;
+        boost::asio::io_service ios;
+
+        boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address::from_string(host), port);
+
+        boost::asio::ip::tcp::socket socket(ios);
+
+        socket.connect(endpoint);
+
+        boost::array<char, 2048> buf;
+        std::copy(message.begin(),message.end(),buf.begin());
+        boost::system::error_code error;
+        socket.write_some(boost::asio::buffer(buf, message.size()), error);
+
+        std::string response;
+
+        do {
+            char buf[1024];
+            size_t bytes_transferred = socket.receive(asio::buffer(buf, 1024), {}, ec);
+            if (!ec) response.append(buf, buf + bytes_transferred);
+        } while (!ec);
+        socket.close();
+    }
+
 private:
-    void do_accept()
-    {
+    void do_accept() {
         acceptor_.async_accept(
             socket_,
             [this](system::error_code ec) {
@@ -157,40 +183,42 @@ private:
             }
         );
     }
-
     tcp::acceptor acceptor_;
     tcp::socket socket_;
 };
 
+void start_server(short port, server * _server) {
+    asio::io_service io_service;
+    server s(io_service, port);
+    _server = &s;
+    io_service.run();
+}
+
 int main(int argc, char* argv[])
 {
-
+    server* server;
     mysqlpp::Connection conn(false);
-    conn.connect("smartoffice_srv", "localhost",
-                 "somi", "somi2016");
+    conn.set_option(new mysqlpp :: SetCharsetNameOption ("utf8"));
+    conn.connect("smartoffice_srv", "localhost", "somi", "somi2016");
 
-//    mysqlpp::Query query = conn.query();
-//    query << "insert into nodes (hash,ip,port)" <<
-//          " VALUES('237c8e4d3d631e60436b64206e1feb1228', '127.0.0.1', 255);";
-//
-//
-//    query.execute();
-//    try {
-//        short port;
-//
-//        property_tree::ptree pt;
-//        property_tree::ini_parser::read_ini("config.ini", pt);
-//        asio::io_service io_service;
-//
-//        istringstream (pt.get<string>("General.port")) >> port;
-//
-//        server s(io_service, port);
-//
-//        io_service.run();
-//    }
-//    catch (std::exception &e) {
-//        cerr << "Exception: " << e.what() << "\n";
-//    }
+    try {
+        short port;
+
+        property_tree::ptree pt;
+        property_tree::ini_parser::read_ini("config.ini", pt);
+        istringstream (pt.get<string>("General.port")) >> port;
+
+        boost::thread{start_server, port, server};
+
+        char chars[20];
+        while (true) {
+            scanf("%s",chars);
+            server->send_message("192.168.1.113", 2222, chars);
+        }
+    }
+    catch (std::exception &e) {
+        cerr << "Exception: " << e.what() << "\n";
+    }
 
     return 0;
 }
