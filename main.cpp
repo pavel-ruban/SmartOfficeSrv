@@ -120,7 +120,7 @@ private:
     {
         auto self(shared_from_this());
         asio::async_write(
-            socket_, asio::buffer(transmitted_data_, max_length),
+            socket_, asio::buffer(transmitted_data_, std::strlen(transmitted_data_)),
             [this, self](system::error_code ec, size_t length) {
                  if (!ec) {
                      do_read();
@@ -207,6 +207,7 @@ int main(int argc, char* argv[])
         property_tree::ptree pt;
         property_tree::ini_parser::read_ini("config.ini", pt);
         istringstream (pt.get<string>("General.port")) >> port;
+        cout << port << std::endl;
 
         boost::thread{start_server, port, server};
 
