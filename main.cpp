@@ -1,6 +1,6 @@
 #include <iostream>
 #include "smartoffice-srv.h"
-
+#include <stdlib.h>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -14,10 +14,16 @@
 #include <mysql++.h>
 #include <boost/array.hpp>
 #include <boost/thread.hpp>
+#include <vector>
+#include <atomic>
 
 using boost::asio::ip::tcp;
 using namespace std;
 using namespace boost;
+
+class session;
+std::vector<std::shared_ptr<session>*> sessions;
+//std::atomic<
 
 enum {
     OK = 200,
@@ -25,14 +31,40 @@ enum {
     UNAUTHORIZED = 401,
     INTERNAL_SERVER_ERROR = 500
 };
+
+
 class session
         : public std::enable_shared_from_this<session>
 {
+private:
+    std::string  *node_id = new string("");
 public:
     string ip;
-    session(tcp::socket socket) : socket_(std::move(socket)) {
+    bool active = false;
+
+
+    std::string get_node_id() {
+        if (*node_id != "") {
+            return *node_id;
+        }
+    }
+
+    session(tcp::socket socket) : socket_(std::move(socket))
+    {
+        active = false;
         memset(transmitted_data_, 0, sizeof(transmitted_data_));
         memset(recieved_data_, 0, sizeof(recieved_data_));
+        *node_id = "";
+    }
+
+    ~session()
+    {
+        for (uint32_t i = 0; i < sessions.size(); i++) {
+            if (this == sessions[i]->get()) {
+                sessions.erase(sessions.begin() + i);
+                break;
+            }
+        }
     }
 
     void start()
@@ -41,6 +73,7 @@ public:
     }
 
 private:
+
     enum {
         max_length = 1024
     };
@@ -49,6 +82,7 @@ private:
     char request_body[max_length];
 
     void handle_request(size_t length) {
+        active = true;
         vector<string> strs;
         vector<string> buf;
 
@@ -90,6 +124,10 @@ private:
         if (headers.find("node_id") == headers.end()) {
             strcpy(transmitted_data_, "status: 401\n");
         } else {
+            if (headers.find("node_id") != headers.end()) {
+                *node_id = (*headers.find("node_id")).second;
+            } else
+                *node_id = "";
             // Тут sql авторизация?
             if (headers["action"] == "call");
 
@@ -134,15 +172,40 @@ private:
 
 public:
 
+    void change_buffer (std::string buffer) {
+        strcpy(transmitted_data_, buffer.c_str());
+    }
+
+    void send_message(std::string message) {
+        strcpy(transmitted_data_, message.c_str());
+        do_write(message.length());
+    }
+
 };
+
+
+
 
 class server
 {
 public:
+    char a = 'a';
+
+
     server(asio::io_service& io_service, short port)
             : acceptor_(io_service, tcp::endpoint(tcp::v4(), port)),
               socket_(io_service) {
         do_accept();
+    }
+
+    void send_message(std::string node_id, std::string message) {
+//        for (auto it = sessions.begin(); it != sessions.end(); ++it) {
+//            if ((*it)->get()->get_node_id() == node_id) {
+//                (*it)->get()->send_message(message);
+//
+//            }
+//        }
+        std::cout << sessions[0]->get()->get_node_id() << std::endl;
     }
 
     void send_message(std::string host, int port, std::string message) {
@@ -175,46 +238,71 @@ private:
         acceptor_.async_accept(
             socket_,
             [this](system::error_code ec) {
+                cout << "START\n\r";
+                std::shared_ptr<session> *sp = new std::shared_ptr<session>;
+
                 if (!ec) {
-                    std::make_shared<session>(std::move(socket_))->start();
+                    cout << "MIDDLE\n\r";
+                    *sp = std::make_shared<session>(std::move(socket_));
+                    sessions.push_back(sp);
+                    (*sp)->start();
                 }
 
                 do_accept();
+                sp->reset();
+                delete sp;
+                cout << "END\n\r";
             }
         );
+
     }
     tcp::acceptor acceptor_;
     tcp::socket socket_;
 };
+asio::io_service io_service;
+server s(io_service, 2525);
 
-void start_server(short port, server * _server) {
-    asio::io_service io_service;
-    server s(io_service, port);
-    _server = &s;
+void start_server(short port) {
+
     io_service.run();
 }
 
 int main(int argc, char* argv[])
 {
-    server* server;
+    short port;
+    std::string database, server_address, user, password;
+    property_tree::ptree pt;
+    property_tree::ini_parser::read_ini("config.ini", pt);
+    istringstream (pt.get<string>("General.port")) >> port;
+    istringstream (pt.get<string>("MySQL.database")) >> database;
+    istringstream (pt.get<string>("MySQL.address")) >> server_address;
+    istringstream (pt.get<string>("MySQL.user")) >> user;
+    istringstream (pt.get<string>("MySQL.password")) >> password;
+    cout << port << std::endl;
+
+    //server* server;
     mysqlpp::Connection conn(false);
     conn.set_option(new mysqlpp :: SetCharsetNameOption ("utf8"));
-    conn.connect("smartoffice_srv", "localhost", "somi", "somi2016");
-
+    conn.connect(database.c_str(), server_address.c_str(), user.c_str(), password.c_str());
+//    mysqlpp::Query query = conn.query("select node_id from somi");
+//    if (mysqlpp::StoreQueryResult res = query.store()) {
+//        cout << "We have:" << endl;
+//        mysqlpp::StoreQueryResult::const_iterator it;
+//        for (it = res.begin(); it != res.end(); ++it) {
+//            mysqlpp::Row row = *it;
+//            cout << '\t' << row[0] << endl;
+//        }
+//    }
     try {
-        short port;
-
-        property_tree::ptree pt;
-        property_tree::ini_parser::read_ini("config.ini", pt);
-        istringstream (pt.get<string>("General.port")) >> port;
-        cout << port << std::endl;
-
-        boost::thread{start_server, port, server};
+        boost::thread{start_server, port};
 
         char chars[20];
         while (true) {
             scanf("%s",chars);
-            server->send_message("192.168.1.113", 2222, chars);
+            if(chars[0] == 'a')
+            //cout << sessions[0]->get()->active << std::endl;
+            //s.send_message("biba", "BEEBA");
+            cout << sessions.size();
         }
     }
     catch (std::exception &e) {
