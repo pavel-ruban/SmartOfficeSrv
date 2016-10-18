@@ -21,9 +21,76 @@ using boost::asio::ip::tcp;
 using namespace std;
 using namespace boost;
 
+class mysql_handler
+{
+private:
+    mysqlpp::Connection *conn;
+    vector<string> *hashes;
+public:
+    bool connected = false;
+
+    mysql_handler() {
+        hashes = new vector<string>;
+        conn = new mysqlpp::Connection(true);
+    }
+
+    void connect(string database, string address, string user, string password) {
+        conn->set_option(new mysqlpp :: SetCharsetNameOption ("utf8"));
+        try {
+            conn->connect(database.c_str(), address.c_str(), user.c_str(), password.c_str());
+            connected = true;
+        }
+        catch (mysqlpp::Exception e) {
+            cerr << e.what();
+        }
+    }
+
+    mysql_handler(string database, string address, string user, string password) {
+        hashes = new vector<string>;
+        conn = new mysqlpp::Connection(true);
+        connect(database, address, user, password);
+    }
+
+    ~mysql_handler() {
+        delete conn;
+        delete hashes;
+    }
+
+    void refresh_hashes() {
+        if (connected) {
+            try {
+                mysqlpp::Query query = conn->query("SELECT hash from nodes");
+                mysqlpp::StoreQueryResult res = query.store();
+                if (res) {
+                    mysqlpp::StoreQueryResult::const_iterator it;
+                    for (it = res.begin(); it != res.end(); ++it) {
+                        mysqlpp::Row row = *it;
+                        hashes->push_back(row[0].c_str());
+                    }
+                }
+            }
+            catch (mysqlpp::Exception e) {
+                cerr << e.what();
+            }
+        }
+    }
+
+    void print_hashes() {
+        for (auto it = hashes->begin(); it != hashes->end(); ++it) {
+            cout << *it << endl;
+        }
+    }
+
+    bool is_user_exists(string hash) {
+        return std::find(hashes->begin(), hashes->end(), hash) != hashes->end();
+    }
+
+};
+
+mysql_handler *mysql = new mysql_handler();
+
 class session;
-std::vector<std::shared_ptr<session>*> sessions;
-//std::atomic<
+std::vector<session*> sessions;
 
 enum {
     OK = 200,
@@ -46,7 +113,7 @@ public:
     std::string get_node_id() {
         if (*node_id != "") {
             return *node_id;
-        }
+        } else return "Unathorized";
     }
 
     session(tcp::socket socket) : socket_(std::move(socket))
@@ -59,12 +126,14 @@ public:
 
     ~session()
     {
+        cout << "SESSION DC (node_id: " << this->get_node_id() << ")" << std::endl;
         for (uint32_t i = 0; i < sessions.size(); i++) {
-            if (this == sessions[i]->get()) {
+            if (this == sessions[i]) {
                 sessions.erase(sessions.begin() + i);
                 break;
             }
         }
+        delete node_id;
     }
 
     void start()
@@ -122,18 +191,21 @@ private:
 
         // Если запрос не содержит идентификатор.
         if (headers.find("node_id") == headers.end()) {
-            strcpy(transmitted_data_, "status: 401\n");
+            strcpy(transmitted_data_, "status: 400\n");
         } else {
             if (headers.find("node_id") != headers.end()) {
                 *node_id = (*headers.find("node_id")).second;
             } else
                 *node_id = "";
-            // Тут sql авторизация?
-            if (headers["action"] == "call");
 
-            // Звонок.
-            cout << "RING" << endl;
-            strcpy(transmitted_data_, "status: 200\n");
+            mysql->refresh_hashes();
+            if (mysql->is_user_exists(*node_id)) {
+                if (headers["action"] == "call")
+                    // Звонок.
+                    cout << "RING" << endl;
+                strcpy(transmitted_data_, "status: 200\n");
+            } else
+                strcpy(transmitted_data_, "status: 401\n");
 
         }
     }
@@ -172,25 +244,15 @@ private:
 
 public:
 
-    void change_buffer (std::string buffer) {
-        strcpy(transmitted_data_, buffer.c_str());
-    }
-
     void send_message(std::string message) {
         strcpy(transmitted_data_, message.c_str());
         do_write(message.length());
     }
-
 };
-
-
-
 
 class server
 {
 public:
-    char a = 'a';
-
 
     server(asio::io_service& io_service, short port)
             : acceptor_(io_service, tcp::endpoint(tcp::v4(), port)),
@@ -199,13 +261,11 @@ public:
     }
 
     void send_message(std::string node_id, std::string message) {
-//        for (auto it = sessions.begin(); it != sessions.end(); ++it) {
-//            if ((*it)->get()->get_node_id() == node_id) {
-//                (*it)->get()->send_message(message);
-//
-//            }
-//        }
-        std::cout << sessions[0]->get()->get_node_id() << std::endl;
+        for (auto it = sessions.begin(); it != sessions.end(); ++it) {
+            if ((*it)->get_node_id() == node_id) {
+                (*it)->send_message(message);
+            }
+        }
     }
 
     void send_message(std::string host, int port, std::string message) {
@@ -234,22 +294,24 @@ public:
     }
 
 private:
+    char error_data[1000];
+    std::size_t error_size;
     void do_accept() {
         acceptor_.async_accept(
             socket_,
             [this](system::error_code ec) {
-                cout << "START\n\r";
-                std::shared_ptr<session> *sp = new std::shared_ptr<session>;
+                std::shared_ptr<session> *sp = nullptr;
 
                 if (!ec) {
-                    cout << "MIDDLE\n\r";
+                    sp = new std::shared_ptr<session>;
                     *sp = std::make_shared<session>(std::move(socket_));
-                    sessions.push_back(sp);
+                    sessions.push_back(sp->get());
                     (*sp)->start();
+                } else {
+                    cout << ec << std::endl;
                 }
 
                 do_accept();
-                sp->reset();
                 delete sp;
                 cout << "END\n\r";
             }
@@ -260,10 +322,9 @@ private:
     tcp::socket socket_;
 };
 asio::io_service io_service;
-server s(io_service, 2525);
+server s(io_service, 2525); //Починить это говно!
 
 void start_server(short port) {
-
     io_service.run();
 }
 
@@ -278,21 +339,9 @@ int main(int argc, char* argv[])
     istringstream (pt.get<string>("MySQL.address")) >> server_address;
     istringstream (pt.get<string>("MySQL.user")) >> user;
     istringstream (pt.get<string>("MySQL.password")) >> password;
-    cout << port << std::endl;
-
-    //server* server;
-    mysqlpp::Connection conn(false);
-    conn.set_option(new mysqlpp :: SetCharsetNameOption ("utf8"));
-    conn.connect(database.c_str(), server_address.c_str(), user.c_str(), password.c_str());
-//    mysqlpp::Query query = conn.query("select node_id from somi");
-//    if (mysqlpp::StoreQueryResult res = query.store()) {
-//        cout << "We have:" << endl;
-//        mysqlpp::StoreQueryResult::const_iterator it;
-//        for (it = res.begin(); it != res.end(); ++it) {
-//            mysqlpp::Row row = *it;
-//            cout << '\t' << row[0] << endl;
-//        }
-//    }
+    mysql->connect(database, server_address, user, password);
+    mysql->refresh_hashes();
+    mysql->print_hashes();
     try {
         boost::thread{start_server, port};
 
@@ -300,8 +349,8 @@ int main(int argc, char* argv[])
         while (true) {
             scanf("%s",chars);
             if(chars[0] == 'a')
-            //cout << sessions[0]->get()->active << std::endl;
-            //s.send_message("biba", "BEEBA");
+            s.send_message("biba", "ZDAROVA");
+            if(chars[0] == 'b')
             cout << sessions.size();
         }
     }
@@ -309,5 +358,6 @@ int main(int argc, char* argv[])
         cerr << "Exception: " << e.what() << "\n";
     }
 
+    delete mysql;
     return 0;
 }
