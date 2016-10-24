@@ -73,10 +73,12 @@ void mysql_handler::refresh()
                     boost::property_tree::ptree pt;
                     std::stringstream ss;
                     ss.str(row[5].c_str());
-                    boost::property_tree::read_json(ss, pt);
-                    if (pt.get<bool>("default")) {
-                        default_ip = row[2].c_str();
-                        default_port = atoi(row[3].c_str());
+                    if (strlen(row[5].c_str()) != 0) {
+                        boost::property_tree::read_json(ss, pt);
+                        if (pt.get<bool>("default")) {
+                            default_ip = row[2].c_str();
+                            default_port = atoi(row[3].c_str());
+                        }
                     }
                     attributes->push_back(row[5].c_str());
                 }
@@ -112,6 +114,26 @@ void mysql_handler::print_hashes()
         cout << *it << endl;
     }
 }
+
+std::pair<string, short> mysql_handler::get_host_by_id(string node_id)
+{
+    if (connected) {
+        try {
+            mysqlpp::Query query = conn->query("SELECT * FROM `nodes` WHERE hash='" + node_id + "'");
+            mysqlpp::StoreQueryResult res = query.store();
+            if (res) {
+                if(res.begin() != res.end()) {
+                    mysqlpp::Row row = *res.begin();
+                    return std::make_pair(row[2].c_str(), atoi(row[3].c_str()));
+                } else return std::make_pair("",666); // Takie dela.
+            }
+        }
+        catch (mysqlpp::Exception e) {
+            cerr << e.what();
+        }
+    }
+}
+
 
 //    void mysql_handler::print_tree(boost::property_tree::ptree const& pt)
 //    {

@@ -11,8 +11,9 @@
 #include "../smartoffice-srv.h"
 #include <server.h>
 #include "response_handler.h"
+#include "client.h"
 
-class server;
+class client;
 
 using namespace boost;
 using boost::asio::ip::tcp;
@@ -31,20 +32,22 @@ private:
     char request_header[max_length];
     char request_body[max_length];
     std::vector<session*> *sessions;
-    server *_server;
+    client *_client;
 
 public:
+    bool avaiting_answer = false;
     mysql_handler *mysql;
     std::string  *node_id = new std::string("");
     char transmitted_data_[max_length];
     char recieved_data_[max_length];
-    void init(server *server);
     std::string get_node_id();
-    session(tcp::socket socket, mysql_handler *_mysql, std::vector<session*> *sessions);
+    session(tcp::socket socket, mysql_handler *_mysql, std::vector<session*> *sessions, client *_client);
     ~session();
     void start();
     void send_message(std::string message);
+    map<string, string> parse_headers(string data_to_parse);
 private:
+    void handle_response(string response);
     void handle_request(size_t length);
     void do_read();
     void do_write(size_t length);

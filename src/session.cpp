@@ -1,21 +1,22 @@
 #include "session.h"
 #include <memory>
 
-    std::string session::get_node_id()
+std::string session::get_node_id()
     {
         if (*node_id != "") {
             return *node_id;
         } else return "Unathorized";
     }
 
-    session::session(tcp::socket socket, mysql_handler *_mysql, std::vector<session*> *_sessions) : socket_(std::move(socket))
+    session::session(tcp::socket socket, mysql_handler *_mysql, std::vector<session*> *_sessions, client *sclient) : socket_(std::move(socket))
     {
         sessions = _sessions;
         mysql = _mysql;
+        _client = sclient;
         memset(transmitted_data_, 0, sizeof(transmitted_data_));
         memset(recieved_data_, 0, sizeof(recieved_data_));
         *node_id = "";
-        sessions = new std::vector<session*>();
+        //sessions = new std::vector<session*>();
 
     }
 
@@ -31,19 +32,7 @@
         delete node_id;
     }
 
-    void session::init(server *server)
-    {
-        _server = server;
-    }
-
-    void session::start()
-    {
-        do_read();
-    }
-///////
-
-    void session::handle_request(size_t length) {
-
+    map<string, string> session::parse_headers(string data_to_parse) {
         vector<string> strs;
         vector<string> buf;
 
@@ -55,10 +44,9 @@
         regex expression("^(.+(?:\r\n|\n|\r))+(?:\r\n|\n|\r)(.*)$");
 
         string::const_iterator start, end;
-        string data(recieved_data_);
 
-        start = data.begin();
-        end = data.begin() + length;
+        start = data_to_parse.begin();
+        end = data_to_parse.begin() + data_to_parse.length();
 
         match_results<string::const_iterator> what;
         match_flag_type flags = regex_constants::match_single_line | regex_constants::match_stop;
@@ -82,30 +70,76 @@
             split(buf,*it,is_any_of(":"));
             headers[buf[0]] = buf[1].substr(1,buf[1].size());
         }
+        return headers;
+    }
 
+    void session::start()
+    {
+        do_read();
+    }
+///////
+
+    void session::handle_request(size_t length) {
+
+
+        map<string,string> headers = parse_headers(string(recieved_data_));
         // Если запрос не содержит идентификатор.
         if (headers.find("node_id") == headers.end()) {
             strcpy(transmitted_data_, "status: 400\n");
         } else {
-            if (headers.find("node_id") != headers.end()) {
+            if (headers.find("node_id") != headers.end() && *node_id == "") {
                 *node_id = (*headers.find("node_id")).second;
             } else
                 *node_id = "";
 
             mysql->refresh_hashes();
+            string result("");
             if (mysql->is_user_exists(*node_id)) {
-                if (headers["action"] == "call")
-                    if(headers.find(headers["destination"]) == headers.end()) {
-                        _server->send_message(string(transmitted_data_));
-                    } else {
-                        _server->send_message(headers["destination"], string(transmitted_data_));
+                if (headers["action"] == "call") {
+                    try {
+                        if (headers.count("destination") <= 0) {
+                            result = _client->send_message(string(recieved_data_));
+                        } else {
+                            result = _client->send_message(headers["destination"], string(recieved_data_));
+                        }
+                        handle_response(result);
+                    } catch (std::exception &e){
+                       // cerr << e.what();
+                        if (string(e.what()).find("Connection refused")) {
+                            _client->send_message(headers["node_id"], string("status: destination host not available\ndestination: ") + headers["node_id"] + "\n");
+                        }
+
                     }
+                }
                 // Звонок.
-                cout << "RING" << endl;
-                strcpy(transmitted_data_, "status: 200\n");
+               // cout << "RING" << endl;
+               // strcpy(transmitted_data_, "status: 200\n");
             } else
                 strcpy(transmitted_data_, "status: 401\n");
 
+        }
+    }
+
+    void session::handle_response(string response) {
+        map<string,string> headers = parse_headers(response);
+        if(headers.count("node_id") > 0)
+        {
+            if (mysql->is_user_exists(headers["node_id"]))
+            {
+                if (headers["action"] == "call")
+                {
+                    string _response("");
+                    _response = _client->send_message(headers["destination"], string("node_id: ") + *node_id + string("\naction:call\ndestination: " + headers["destination"]));
+                    auto bufheaders = parse_headers(_response);
+                    cout << _client->send_message(bufheaders["destination"],"OK") << std::endl;
+                }
+            } else {
+                _client->send_message(*node_id, "status: server error\n");
+                return;
+            }
+        } else {
+            _client->send_message(*node_id, "status: server error\n");
+            return;
         }
     }
 
@@ -140,6 +174,8 @@
     }
 
     void session::send_message(std::string message) {
+        memset(transmitted_data_, 0, sizeof(transmitted_data_));
         strcpy(transmitted_data_, message.c_str());
-        do_write(message.length());
+        avaiting_answer = true;
+      //  do_write(message.length());
     }

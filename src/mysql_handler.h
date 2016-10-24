@@ -24,6 +24,7 @@ public:
     ~mysql_handler();
     void connect(string database, string address, string user, string password);
     mysql_handler(string database, string address, string user, string password);
+    std::pair<string, short> get_host_by_id(string node_id);
     void refresh_hashes();
     void refresh();
     std::pair<string, short> get_default_host();

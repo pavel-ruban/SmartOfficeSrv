@@ -6,12 +6,13 @@
 #include "mysql_handler.h"
 #include "session.h"
 #include "server.h"
+#include "client.h"
 
 using namespace std;
 
 class server;
 server *s;
-
+client *sm_client;
 mysql_handler *mysql = new mysql_handler();
 std::vector<session*> *sessions = new std::vector<session*>();
 
@@ -19,7 +20,8 @@ asio::io_service io_service;
 
 void start_server(short port)
 {
-    s = new server(io_service, port, mysql, sessions);
+    sm_client = new client(sessions, mysql);
+    s = new server(io_service, port, mysql, sessions, sm_client);
     io_service.run();
 }
 
@@ -38,17 +40,19 @@ int main(int argc, char* argv[])
     mysql->connect(database, server_address, user, password);
     mysql->refresh_hashes();
     mysql->refresh();
-    mysql->print_hashes();
+   // mysql->print_hashes();
     try {
         boost::thread{*start_server, port};
         char chars[20];
         while (true) {
             scanf("%s",chars);
             if(chars[0] == 'a')
-            s->send_message("ZDAROVA");
+//            s->send_message("ZDAROVA");
             int i = 0;
-            if(chars[0] == 'b')
-            cout << sessions->size();
+            if(chars[0] == 'b') {
+                cout << sessions->size();
+                sm_client->sam();
+            }
             if(chars[0] == 'c')
                 cout << (*sessions)[0]->get_node_id() << std::endl;
             if(chars[0] == 'd')
