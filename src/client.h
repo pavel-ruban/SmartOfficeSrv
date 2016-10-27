@@ -23,6 +23,7 @@ private:
     mysql_handler *_mysql;
 public:
     void sam();
+    void my_read_until(boost::asio::ip::tcp::socket *_socket, boost::asio::streambuf *_response);
     client(std::vector<session *> *sessions, mysql_handler *mysql);
     std::string send_message(std::string host, int port, std::string message);
     string send_message(std::string node_id, std::string message);

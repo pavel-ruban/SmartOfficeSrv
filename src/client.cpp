@@ -1,8 +1,13 @@
+#include <boost/thread.hpp>
 #include "client.h"
 
 client::client(std::vector<session*> *sessions, mysql_handler *mysql) {
     _sessions = sessions;
     _mysql = mysql;
+}
+
+void client::my_read_until(boost::asio::ip::tcp::socket *_socket, boost::asio::streambuf *_response) {
+    boost::asio::read_until(*_socket, *_response, "\n\n");
 }
 
 std::string client::send_message(std::string host, int port, std::string message) {
@@ -20,14 +25,21 @@ std::string client::send_message(std::string host, int port, std::string message
         _socket.write_some(boost::asio::buffer(buf, message.size()), error);
 
         boost::asio::streambuf _response;
-        boost::asio::read_until(_socket, _response, "\n\n");
+        boost::thread *newthread = new boost::thread(boost::bind(&client::my_read_until, this, &_socket, &_response));
+        if (!newthread->timed_join(boost::posix_time::seconds(5))) {
+            newthread->interrupt();
+            //cout << "SHIT HAPPENS" << std::endl;
+            throw std::logic_error("Client timed out.");
+        }
+        delete newthread;
+       // boost::asio::read_until(_socket, _response, "\n\n");
         _socket.close();
         std::string s( (std::istreambuf_iterator<char>(&_response)), std::istreambuf_iterator<char>() );
-        cout << s << std::endl;
+        cout << "Answer from " << host << ":" << port << " is:\n" << s << "----------------------------------------" << std::endl;
         return s;
 
     } catch (std::exception &e) {
-        cerr << e.what() << std::endl;
+        //cerr << e.what() << std::endl;
         throw;
     }
 }
@@ -40,7 +52,7 @@ std::string client::send_message(std::string host, int port, std::string message
                     return "local_handle%";
                 }
             }
-            cout << _mysql->get_host_by_id(_node_id).first << " BIBA " << _mysql->get_host_by_id(_node_id).second << _node_id << std::endl;
+
             return send_message(_mysql->get_host_by_id(_node_id).first, _mysql->get_host_by_id(_node_id).second, message);
         } catch (std::exception &e) {
             throw;
@@ -54,8 +66,7 @@ std::string client::send_message(std::string host, int port, std::string message
      */
     std::string client::send_message(std::string message)
     {
-        // cout << mysql->get_default_host().first;
-      //  cout << _mysql->get_default_host().first << " " << _mysql->get_default_host().second << std::endl;
+        cout << "Default web server info: " << _mysql->get_default_host().first << " " << _mysql->get_default_host().second << std::endl;
         return send_message(_mysql->get_default_host().first, _mysql->get_default_host().second, message);
     }
 

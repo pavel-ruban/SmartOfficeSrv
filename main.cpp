@@ -25,6 +25,23 @@ void start_server(short port)
     io_service.run();
 }
 
+void invalidate_sessions()
+{
+
+    while (true) {
+        struct timeval tp;
+        gettimeofday(&tp, NULL);
+        usleep(200000);
+        for (uint32_t i = 0; i < sessions->size(); i++) {
+            cout << ((*sessions)[i]->mslong + 2000 - (long long) (tp.tv_sec * 1000L + tp.tv_usec / 1000)) << std::endl;
+            if ((((*sessions)[i]->mslong + 2000) <= (long long) (tp.tv_sec * 1000L + tp.tv_usec / 1000)) && (*sessions)[i]->mslong != 0) {
+             //   cout << "VIZOV" << std::endl;
+                delete (*sessions)[i];
+            }
+        }
+    }
+}
+
 int main(int argc, char* argv[])
 {
     short port;
@@ -42,15 +59,16 @@ int main(int argc, char* argv[])
     mysql->refresh();
    // mysql->print_hashes();
     try {
+        boost::thread{*invalidate_sessions};
         boost::thread{*start_server, port};
         char chars[20];
         while (true) {
             scanf("%s",chars);
             if(chars[0] == 'a')
-//            s->send_message("ZDAROVA");
+               sm_client->send_message("dest_test", "ZDAROVA\n");
             int i = 0;
             if(chars[0] == 'b') {
-                cout << sessions->size();
+                //cout << sessions->size();
                 sm_client->sam();
             }
             if(chars[0] == 'c')

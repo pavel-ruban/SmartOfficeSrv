@@ -14,6 +14,7 @@ class mysql_handler
 private:
     mysqlpp::Connection *conn;
     vector<string> *hashes;
+    vector<string> *types;
     vector<string> *attributes;
     string default_ip;
     short default_port;
@@ -29,6 +30,7 @@ public:
     void refresh();
     std::pair<string, short> get_default_host();
     string get_attributes(string hash);
+    string get_type(string hash);
     void print_hashes();
     bool is_user_exists(string hash);
 };

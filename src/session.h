@@ -10,6 +10,7 @@
 #include <mysql_handler.h>
 #include "../smartoffice-srv.h"
 #include <server.h>
+#include <chrono>
 #include "response_handler.h"
 #include "client.h"
 
@@ -18,6 +19,7 @@ class client;
 using namespace boost;
 using boost::asio::ip::tcp;
 using namespace std;
+using namespace std::chrono;
 
 class session : public std::enable_shared_from_this<session>
 {
@@ -35,6 +37,8 @@ private:
     client *_client;
 
 public:
+    void refresh_time();
+    long long mslong = 0;
     bool avaiting_answer = false;
     mysql_handler *mysql;
     std::string  *node_id = new std::string("");
@@ -46,6 +50,7 @@ public:
     void start();
     void send_message(std::string message);
     map<string, string> parse_headers(string data_to_parse);
+    void handle_error(string message, string dest, string origin, string action);
 private:
     void handle_response(string response);
     void handle_request(size_t length);

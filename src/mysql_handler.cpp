@@ -3,6 +3,7 @@
 mysql_handler::mysql_handler() {
     hashes = new vector<string>;
     attributes = new vector<string>;
+    types = new vector<string>;
     conn = new mysqlpp::Connection(true);
 }
 
@@ -29,6 +30,7 @@ mysql_handler::~mysql_handler()
 {
     delete conn;
     delete hashes;
+    delete types;
 }
 
 void mysql_handler::refresh_hashes()
@@ -80,6 +82,7 @@ void mysql_handler::refresh()
                             default_port = atoi(row[3].c_str());
                         }
                     }
+                    types->push_back(row[4].c_str());
                     attributes->push_back(row[5].c_str());
                 }
             }
@@ -103,6 +106,18 @@ string mysql_handler::get_attributes(string hash)
         if ((*it) == hash)
         {
             return (*attributes)[i];
+        }
+    }
+}
+
+string mysql_handler::get_type(string hash)
+{
+    int i = 0;
+    for (auto it = hashes->begin(); it != hashes->end(); ++it, i++)
+    {
+        if ((*it) == hash)
+        {
+            return (*types)[i];
         }
     }
 }
