@@ -10,15 +10,15 @@ using namespace std;
 
 class mysql_handler
 {
-
+public:
+    string default_node_id;
 private:
+    string default_ip;
+    short default_port;
     mysqlpp::Connection *conn;
     vector<string> *hashes;
     vector<string> *types;
     vector<string> *attributes;
-    string default_ip;
-    short default_port;
-
 public:
     bool connected = false;
     mysql_handler();

@@ -61,7 +61,7 @@ string response_handler::handle(string data, size_t length, session *session) {
         } else
             *session->node_id = "";
 
-        session->mysql->refresh_hashes();
+        session->mysql->refresh();
         if (session->mysql->is_user_exists(*session->node_id)) {
             if (headers["action"] == "call")
                 if(headers.find(headers["destination"]) != headers.end()) {

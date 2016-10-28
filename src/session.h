@@ -13,6 +13,7 @@
 #include <chrono>
 #include "response_handler.h"
 #include "client.h"
+#include "logger.h"
 
 class client;
 
@@ -26,20 +27,21 @@ class session : public std::enable_shared_from_this<session>
 
 private:
     enum {
-        max_length = 1024
+        max_length = 1024,
+        default_timeout = 10000
     };
-
-    tcp::socket socket_;
-
+    logger *log_handler = new logger(cout, cout);
     char request_header[max_length];
     char request_body[max_length];
     std::vector<session*> *sessions;
     client *_client;
 
 public:
+    void disconnect(string reason);
+    void send_message(std::string message, unsigned int timeout);
     void refresh_time();
     long long mslong = 0;
-    bool avaiting_answer = false;
+    unsigned int _timeout = 0;
     mysql_handler *mysql;
     std::string  *node_id = new std::string("");
     char transmitted_data_[max_length];
@@ -50,8 +52,10 @@ public:
     void start();
     void send_message(std::string message);
     map<string, string> parse_headers(string data_to_parse);
-    void handle_error(string message, string dest, string origin, string action);
+    void handle_error(string message, string dest, string origin, string action, bool log_this);
 private:
+    std::multimap<string, string> timeout_messages;
+    tcp::socket socket_;
     void handle_response(string response);
     void handle_request(size_t length);
     void do_read();

@@ -4,13 +4,24 @@
 client::client(std::vector<session*> *sessions, mysql_handler *mysql) {
     _sessions = sessions;
     _mysql = mysql;
+    log_handler = new logger(cout, cerr);
+    _mysql->refresh();
+}
+
+client::~client() {
+    delete log_handler;
 }
 
 void client::my_read_until(boost::asio::ip::tcp::socket *_socket, boost::asio::streambuf *_response) {
-    boost::asio::read_until(*_socket, *_response, "\n\n");
+    try {
+        boost::asio::read_until(*_socket, *_response, "\n\n");
+    } catch (std::exception &e)
+    {
+
+    }
 }
 
-std::string client::send_message(std::string host, int port, std::string message) {
+std::string client::send_message(std::string host, int port, std::string message, unsigned int _timeout, bool dnd) {
     boost::system::error_code ec;
     boost::asio::io_service ios;
 
@@ -25,35 +36,59 @@ std::string client::send_message(std::string host, int port, std::string message
         _socket.write_some(boost::asio::buffer(buf, message.size()), error);
 
         boost::asio::streambuf _response;
-        boost::thread *newthread = new boost::thread(boost::bind(&client::my_read_until, this, &_socket, &_response));
-        if (!newthread->timed_join(boost::posix_time::seconds(5))) {
-            newthread->interrupt();
-            //cout << "SHIT HAPPENS" << std::endl;
-            throw std::logic_error("Client timed out.");
-        }
-        delete newthread;
-       // boost::asio::read_until(_socket, _response, "\n\n");
+        log_handler->log_request(host + ":" + std::to_string(port), "", message, _timeout);
+        if (_timeout) {
+            boost::thread *newthread = new boost::thread(
+                    boost::bind(&client::my_read_until, this, &_socket, &_response));
+            if (!newthread->timed_join(boost::posix_time::seconds(_timeout / 1000))) {
+                newthread->interrupt();
+                if(_socket.is_open())
+                {
+                    _socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
+                    _socket.close();
+                }
+                throw std::logic_error("Client timed out.");
+            }
+            delete newthread;
+        } else
+            if (dnd)
+            boost::asio::read_until(_socket, _response, "\n\n");
         _socket.close();
         std::string s( (std::istreambuf_iterator<char>(&_response)), std::istreambuf_iterator<char>() );
-        cout << "Answer from " << host << ":" << port << " is:\n" << s << "----------------------------------------" << std::endl;
+        log_handler->log_response(host + ":" + std::to_string(port),"", s);
         return s;
 
     } catch (std::exception &e) {
-        //cerr << e.what() << std::endl;
         throw;
     }
 }
 
-    string client::send_message(std::string _node_id, std::string message) {
-        try {
-            for (auto it = _sessions->begin(); it != _sessions->end(); ++it) {
-                if ((*it)->get_node_id() == _node_id) {
-                    (*it)->send_message(message);
-                    return "local_handle%";
-                }
-            }
+    string client::send_message(std::string _node_id, std::string message, unsigned int _timeout, bool dnd) {
 
-            return send_message(_mysql->get_host_by_id(_node_id).first, _mysql->get_host_by_id(_node_id).second, message);
+        try {
+            //vector<string> strs;
+            //_node_id.erase(std::remove_if(_node_id.begin(),
+            //                          _node_id.end(),
+            //                          [](char x){return std::isspace(x);}),
+            //           _node_id.end());
+            //cout << _node_id << std::endl;
+            //split(strs,_node_id,is_any_of(","));
+            //cout << strs[0] << " " << strs[1] << endl;
+            //for (auto vit = strs.begin(); vit != strs.end(); ++vit) {
+               // cout << "DEST:" << _node_id << std::endl;
+                for (auto it = _sessions->begin(); it != _sessions->end(); ++it) {
+                    if ((*it)->get_node_id() == _node_id) {
+                        log_handler->log_request("", _node_id, message, _timeout);
+                        if (_timeout)
+                            (*it)->send_message(message, _timeout);
+                        else
+                            (*it)->send_message(message);
+                        return "local_handle%";
+                    }
+                }
+            //}
+
+            return send_message(_mysql->get_host_by_id(_node_id).first, _mysql->get_host_by_id(_node_id).second, message, _timeout, dnd);
         } catch (std::exception &e) {
             throw;
         }
@@ -64,10 +99,16 @@ std::string client::send_message(std::string host, int port, std::string message
      *
      * @param message
      */
-    std::string client::send_message(std::string message)
+    std::string client::send_message(std::string message, unsigned int _timeout, bool dnd)
     {
-        cout << "Default web server info: " << _mysql->get_default_host().first << " " << _mysql->get_default_host().second << std::endl;
-        return send_message(_mysql->get_default_host().first, _mysql->get_default_host().second, message);
+        for ( std::string::iterator it=(message.end() - 3); it!=message.end();) {
+            if (*it == '\n') {
+                message.erase(it);
+            }
+        }
+        message.append("\ndestination: " + _mysql->default_node_id + "\n\n");
+       // log_handler->log_request((_mysql->get_default_host().first + ":" + std::to_string(_mysql->get_default_host().second)), "", message, _timeout);
+        return send_message(_mysql->get_default_host().first, _mysql->get_default_host().second, message, _timeout, dnd);
     }
 
     void client::sam() {

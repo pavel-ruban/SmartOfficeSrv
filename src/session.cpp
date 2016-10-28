@@ -16,19 +16,23 @@ std::string session::get_node_id()
         memset(transmitted_data_, 0, sizeof(transmitted_data_));
         memset(recieved_data_, 0, sizeof(recieved_data_));
         *node_id = "";
-        //sessions = new std::vector<session*>();
-
+        log_handler->log("Client connected.");
+        log_handler->clients_amount(sessions->size() + 1);
     }
 
     session::~session()
     {
         cout << "[LOG]: SESSION DC (node_id: " << this->get_node_id() << ")" << std::endl;
+        for (auto it=timeout_messages.begin(); it!=timeout_messages.end(); ++it) {
+            _client->send_message((*it).first, (*it).second, 0, false);
+        }
         for (uint32_t i = 0; i < sessions->size(); i++) {
             if (this == (*sessions)[i]) {
                 sessions->erase(sessions->begin() + i);
                 break;
             }
         }
+        delete log_handler;
         delete node_id;
     }
 
@@ -78,28 +82,36 @@ std::string session::get_node_id()
     {
         do_read();
     }
-///////
-void session::handle_error(string message, string dest, string origin, string action)
+
+void session::handle_error(string message, string dest, string origin, string action, bool log_this)
 {
     if (message.find("Connection refused") != std::string::npos) {
-        cout << "Connection refused (Server " << dest << " is down?)." << std::endl;
-        _client->send_message(*node_id,
-                              "status: 0\nnode_id: " + dest + "\ndestination: " + *node_id + "\naction: " + action +
-                              "\n\n");
+        if (log_this)
+            cout << "Connection refused (Server " << dest << " is down?)." << std::endl;
+        _client->send_message(origin,
+                              "status: 0\nnode_id: " + dest + "\ndestination: " + origin + "\naction: " + action +
+                              "\n\n", 0, false);
     }
     if (message.find("Client timed out") != std::string::npos) {
-        cout << "Client timed out (Server " << dest << " is down?)." << std::endl;
-        _client->send_message(*node_id,
-                              "status: 408\nnode_id: " + dest + "\ndestination: " + *node_id + "\naction: " + action +
-                              "\n\n");
+        if (log_this)
+            cout << "Client timed out (Server " << dest << " is down?)." << std::endl;
+        _client->send_message(origin,
+                              "status: 408\nnode_id: " + dest + "\ndestination: " + origin + "\naction: " + action +
+                              "\n\n", 0, false);
     }
+}
+
+void session::disconnect(string reason)
+{
+    log_handler->log(get_node_id(), "Disconnected. Reason: " + reason);
+    socket_.cancel();
 }
 
     void session::handle_request(size_t length) {
         map<string,string> headers = parse_headers(string(recieved_data_));
         // Если запрос не содержит идентификатор.
         if (headers.find("node_id") == headers.end()) {
-            cout << "[LOG]: Request w/o auth info/bad request." << std::endl;
+            log_handler->log(get_node_id(), "Request w/o auth info/bad request.");
             strcpy(transmitted_data_, "status: 400\n");
         } else {
             if (headers.find("node_id") != headers.end() && *node_id == "") {
@@ -108,46 +120,43 @@ void session::handle_error(string message, string dest, string origin, string ac
                 *node_id = "";
             }
 
-            mysql->refresh_hashes();
+            mysql->refresh();
             string result("");
             if (mysql->is_user_exists(*node_id))
             {
                 if (headers["action"] == "call")
                 {
                     try {
-                        cout << "----------------------------------------\nTrying to send: destination is ";
                         if (headers.count("destination") <= 0) {
-                            cout << "default web server." << "\n" << recieved_data_ <<  std::endl;
-                            cout << "----------------------------------------" << std::endl;
-                            result = _client->send_message(string(recieved_data_));
-
+                            result = _client->send_message(string(recieved_data_), default_timeout, true);
                         } else {
-                            cout << headers["destination"] << "\n" << recieved_data_ << std::endl;
-                            cout << "----------------------------------------" << std::endl;
-                            result = _client->send_message(headers["destination"], string(recieved_data_));
+                            result = _client->send_message(headers["destination"], string(recieved_data_), default_timeout, true);
                         }
                         handle_response(result);
                     } catch (std::exception &e){
-                            handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"]);
+                        if (headers.count("destination") > 0)
+                            handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                        else
+                            handle_error(string(e.what()), mysql->default_node_id, headers["node_id"], headers["action"], true);
                     }
                 }
                 if (headers["action"] == "open")
                 {
                     try
                     {
-                        //cout << "----------------------------------------\nTrying to send: destination is ";
                         mysql->refresh();
+                        cout << mysql->get_type(*node_id);
                         if (mysql->get_type(*node_id) == "bo") {
-                            result = _client->send_message(headers["destination"], string(recieved_data_));
+                            result = _client->send_message(headers["destination"], string(recieved_data_), default_timeout, true);
                             if (result != "local_handle%")
                                 handle_response(result);
                         }
                         if (mysql->get_type(*node_id) == "pcd") {
-                            result = _client->send_message(headers["destination"], string(recieved_data_));
+                            result = _client->send_message(headers["destination"], string(recieved_data_), 0, true);
                         }
                     } catch (std::exception &e)
                     {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"]);
+                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
                     }
                 }
                 if (headers["action"] == "access request")
@@ -155,16 +164,21 @@ void session::handle_error(string message, string dest, string origin, string ac
                     try {
                         mysql->refresh();
                         if (mysql->get_type(*node_id) == "pcd") {
-                            result = _client->send_message(headers["destination"], string(recieved_data_));
+                            if (headers.count("destination") <= 0) {
+                                result = _client->send_message(string(recieved_data_), default_timeout, true);
+                            } else {
+                                result = _client->send_message(headers["destination"], string(recieved_data_),
+                                                               default_timeout, true);
+                            }
                             if (result != "local_handle%")
                                 handle_response(result);
                         }
                     } catch (std::exception &e) {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"]);
+                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
                     }
                 }
             } else {
-                cout << "[LOG]: Request auth info does not match any legit clients." << std::endl;
+                log_handler->log(get_node_id(), "Request auth info does not match any legit clients.");
                 strcpy(transmitted_data_, "status: 401\n");
             }
 
@@ -179,42 +193,60 @@ void session::handle_error(string message, string dest, string origin, string ac
             {
                 if (headers["action"] == "call")
                 {
+                    bool call_active = false;
                     string _response("");
-                    cout << "----------------------------------------\nTrying to send: destination is " << headers["destination"] << std::endl;
-                    cout << string("node_id: ") + *node_id + string("\naction: call \ndestination: " + headers["destination"]) << std::endl;
-                    cout << "----------------------------------------" << std::endl;
                     try {
-                        _response = _client->send_message(headers["destination"], string("node_id: ") + *node_id +
+                        _response = _client->send_message(headers["destination"], string("node_id: ") + headers["node_id"] +
                                                                                   string("\naction: call\ndestination: " +
-                                                                                         headers["destination"]));
-                        auto bufheaders = parse_headers(_response);
-                        cout << _client->send_message(bufheaders["destination"],"status: " +bufheaders["status"] + "\nnode_id: " + bufheaders["node_id"] + "\naction: " + bufheaders["action"] + "\n") << std::endl;
+                                                                                         headers["destination"]), default_timeout, true);
+                        call_active = true;
+                        try {
+                            auto bufheaders = parse_headers(_response);
+                            _client->send_message(bufheaders["destination"],
+                                                  "status: " + bufheaders["status"] + "\nnode_id: " +
+                                                  bufheaders["node_id"]
+                                                  + "\naction: " + bufheaders["action"] + "\ndestination: " +
+                                                  bufheaders["destination"] + "\n\n", 0, false);
+                            _client->send_message(headers["node_id"],
+                                                  "status: " + bufheaders["status"] + "\nnode_id: " +
+                                                  bufheaders["node_id"]
+                                                  + "\naction: " + bufheaders["action"] + "\ndestination: " +
+                                                          headers["node_id"] + "\n\n", 0, false);
+                        } catch (std::exception &e) {
+
+                        }
                     } catch (std::exception &e) {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"]);
+                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                        handle_error(string(e.what()), headers["destination"], get_node_id(), headers["action"], false);
+//                        _client->send_message(headers["node_id"],
+//                                              "status: 0\nnode_id: " +
+//                                              headers["destination"]
+//                                              + "\naction: " + headers["action"] + "\ndestination: " +
+//                                              headers["node_id"] + "\n\n", 0);
                     }
                 }
                 if (headers["action"] == "open")
                 {
                     try {
-                        _client->send_message(headers["destination"], response);
+                        _client->send_message(headers["destination"], response, 0, false);
                     } catch (std::exception &e) {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"]);
+                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
                     }
                 }
                 if (headers["action"] == "access request")
                 {
                     try {
-                        _client->send_message(headers["destination"], response);
+                        _client->send_message(headers["destination"], response, 0, false);
                     } catch (std::exception &e) {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"]);
+                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
                     }
                 }
             } else {
-                _client->send_message(*node_id, "status: server error\n");
+                _client->send_message(*node_id, "status: server error\n", 0, false);
                 return;
             }
         } else {
-            _client->send_message(*node_id, "status: server error\n");
+            _client->send_message(*node_id, "status: server error\n", 0, false);
             return;
         }
     }
@@ -227,12 +259,11 @@ void session::handle_error(string message, string dest, string origin, string ac
                 [this, self](system::error_code ec, size_t length)
                 {
                     if (!ec) {
-                        cout << "----------------------------------------\nRecieved from: " << socket_.remote_endpoint().address().to_string() << endl;
-                        cout << recieved_data_ << "----------------------------------------" << endl;
+                        log_handler->log_response(socket_.remote_endpoint().address().to_string(),get_node_id(), recieved_data_);
                         struct timeval tp;
                         gettimeofday(&tp, NULL);
                         mslong = 0;
-                        //cout << ((long long) tp.tv_sec * 1000L + tp.tv_usec / 1000) - mslong << std::endl;
+                        _timeout = 0;
                         handle_request(length);
                         do_write(length);
                     }
@@ -247,7 +278,6 @@ void session::handle_error(string message, string dest, string origin, string ac
                 socket_, asio::buffer(transmitted_data_, std::strlen(transmitted_data_)),
                 [this, self](system::error_code ec, size_t length) {
                     if (!ec) {
-
                         do_read();
                     }
                 }
@@ -272,8 +302,20 @@ void session::handle_error(string message, string dest, string origin, string ac
                     }
                 }
         );
-//        memset(transmitted_data_, 0, sizeof(transmitted_data_));
-//        strcpy(transmitted_data_, message.c_str());
-//        avaiting_answer = true;
-//        do_write(message.length());
     }
+
+void session::send_message(std::string message, unsigned int timeout) {
+    auto headers = parse_headers(message);
+    timeout_messages.insert(std::make_pair(headers["node_id"], "node_id: " + get_node_id() +"\nstatus: 408\naction: " + headers["action"] + "\n\n"));
+    _timeout = timeout;
+    refresh_time();
+    auto self(shared_from_this());
+    asio::async_write(
+            socket_, asio::buffer(message.c_str(), message.length()),
+            [this, self](system::error_code ec, size_t length) {
+                if (!ec) {
+                    // do_read();
+                }
+            }
+    );
+}

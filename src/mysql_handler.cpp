@@ -57,7 +57,6 @@ void mysql_handler::refresh_hashes()
 
 void mysql_handler::refresh()
 {
-    refresh_hashes();
     if (connected)
     {
         try
@@ -66,7 +65,9 @@ void mysql_handler::refresh()
             mysqlpp::StoreQueryResult res = query.store();
             if (res)
             {
+                hashes->clear();
                 attributes->clear();
+                types->clear();
                 mysqlpp::StoreQueryResult::const_iterator it;
                 for (it = res.begin(); it != res.end(); ++it)
                 {
@@ -80,8 +81,10 @@ void mysql_handler::refresh()
                         if (pt.get<bool>("default")) {
                             default_ip = row[2].c_str();
                             default_port = atoi(row[3].c_str());
+                            default_node_id = row[1].c_str();
                         }
                     }
+                    hashes->push_back(row[1].c_str());
                     types->push_back(row[4].c_str());
                     attributes->push_back(row[5].c_str());
                 }

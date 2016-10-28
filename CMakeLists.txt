@@ -4,7 +4,7 @@ project(smartoffice_srv)
 include_directories(/usr/include/mysql++ src)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DMYSQLPP_MYSQL_HEADERS_BURIED -g3")
 set (CMAKE_CXX_STANDARD 11)
-set(SOURCE_FILES main.cpp smartoffice-srv.h src/response_handler.cpp src/response_handler.h src/mysql_handler.cpp src/mysql_handler.h src/session.cpp src/session.h src/server.cpp src/server.h src/client.cpp src/client.h)
+set(SOURCE_FILES main.cpp smartoffice-srv.h src/response_handler.cpp src/response_handler.h src/mysql_handler.cpp src/mysql_handler.h src/session.cpp src/session.h src/server.cpp src/server.h src/client.cpp src/client.h src/logger.cpp src/logger.h)
 add_executable(smartoffice_srv ${SOURCE_FILES})
 
 find_package(Boost REQUIRED COMPONENTS system regex thread)

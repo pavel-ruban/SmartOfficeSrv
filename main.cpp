@@ -27,16 +27,17 @@ void start_server(short port)
 
 void invalidate_sessions()
 {
-
     while (true) {
         struct timeval tp;
         gettimeofday(&tp, NULL);
-        usleep(200000);
+        usleep(900000);
         for (uint32_t i = 0; i < sessions->size(); i++) {
-            cout << ((*sessions)[i]->mslong + 2000 - (long long) (tp.tv_sec * 1000L + tp.tv_usec / 1000)) << std::endl;
-            if ((((*sessions)[i]->mslong + 2000) <= (long long) (tp.tv_sec * 1000L + tp.tv_usec / 1000)) && (*sessions)[i]->mslong != 0) {
-             //   cout << "VIZOV" << std::endl;
-                delete (*sessions)[i];
+            if ((*sessions)[i]->_timeout) {
+                if ((((*sessions)[i]->mslong + (*sessions)[i]->_timeout) <=
+                     (long long) (tp.tv_sec * 1000L + tp.tv_usec / 1000)) && (*sessions)[i]->mslong != 0) {
+                    (*sessions)[i]->_timeout = 0;
+                    (*sessions)[i]->disconnect("Connection timed out.");
+                }
             }
         }
     }
@@ -55,7 +56,6 @@ int main(int argc, char* argv[])
     istringstream (pt.get<string>("MySQL.password")) >> password;
     cout << port << std::endl;
     mysql->connect(database, server_address, user, password);
-    mysql->refresh_hashes();
     mysql->refresh();
    // mysql->print_hashes();
     try {
@@ -65,7 +65,7 @@ int main(int argc, char* argv[])
         while (true) {
             scanf("%s",chars);
             if(chars[0] == 'a')
-               sm_client->send_message("dest_test", "ZDAROVA\n");
+               sm_client->send_message("lock_test", "ZDAROVA\n", 10000, true);
             int i = 0;
             if(chars[0] == 'b') {
                 //cout << sessions->size();
