@@ -37,6 +37,7 @@ private:
     client *_client;
 
 public:
+    void force_disconnect(string reason);
     void disconnect(string reason);
     void send_message(std::string message, unsigned int timeout);
     void refresh_time();

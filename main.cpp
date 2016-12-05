@@ -73,6 +73,7 @@ int main(int argc, char* argv[])
             }
             if(chars[0] == 'c')
                 cout << (*sessions)[0]->get_node_id() << std::endl;
+            cout << (*sessions)[1]->get_node_id() << std::endl;
             if(chars[0] == 'd')
                 cout << mysql->get_attributes("237c8e4d3d631e604fsdf23") << std::endl;
         }

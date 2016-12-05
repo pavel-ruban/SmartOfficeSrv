@@ -78,6 +78,7 @@ std::string client::send_message(std::string host, int port, std::string message
                // cout << "DEST:" << _node_id << std::endl;
                 for (auto it = _sessions->begin(); it != _sessions->end(); ++it) {
                     if ((*it)->get_node_id() == _node_id) {
+                       // cout << (*it)->get_node_id() << std::endl;
                         log_handler->log_request("", _node_id, message, _timeout);
                         if (_timeout)
                             (*it)->send_message(message, _timeout);
@@ -104,7 +105,8 @@ std::string client::send_message(std::string host, int port, std::string message
         for ( std::string::iterator it=(message.end() - 3); it!=message.end();) {
             if (*it == '\n') {
                 message.erase(it);
-            }
+            } else
+                it++;
         }
         message.append("\ndestination: " + _mysql->default_node_id + "\n\n");
        // log_handler->log_request((_mysql->get_default_host().first + ":" + std::to_string(_mysql->get_default_host().second)), "", message, _timeout);

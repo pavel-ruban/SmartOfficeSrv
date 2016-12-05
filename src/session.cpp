@@ -85,6 +85,9 @@ std::string session::get_node_id()
 
 void session::handle_error(string message, string dest, string origin, string action, bool log_this)
 {
+    if (dest == "") {
+        dest = mysql->default_node_id;
+    }
     if (message.find("Connection refused") != std::string::npos) {
         if (log_this)
             cout << "Connection refused (Server " << dest << " is down?)." << std::endl;
@@ -107,6 +110,29 @@ void session::disconnect(string reason)
     socket_.cancel();
 }
 
+void session::force_disconnect(string reason)
+{
+    char buf[max_length];
+    char write_buf[2];
+    write_buf[0] = '1';
+    system::error_code ec;
+    log_handler->log(get_node_id(), "Disconnected. Reason: " + reason);
+    socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+    socket_.cancel();
+
+    auto self(shared_from_this());
+
+    asio::async_write(
+            socket_, asio::buffer(transmitted_data_, std::strlen(transmitted_data_)),
+            [this, self](system::error_code ec, size_t length) {
+                if (!ec) {
+                    socket_.close();
+                }
+            }
+    );
+    send_message("BIBA");
+}
+
     void session::handle_request(size_t length) {
         map<string,string> headers = parse_headers(string(recieved_data_));
         // Если запрос не содержит идентификатор.
@@ -118,6 +144,12 @@ void session::disconnect(string reason)
                 *node_id = (*headers.find("node_id")).second;
             } else {
                 *node_id = "";
+            }
+            for (uint32_t i = 0; i < sessions->size(); i++) {
+                if (this->get_node_id() == (*sessions)[i]->get_node_id() && this != (*sessions)[i]) {
+                    (*sessions)[i]->force_disconnect("Old session with same node_id");
+                    break;
+                }
             }
 
             mysql->refresh();
@@ -236,6 +268,7 @@ void session::disconnect(string reason)
                 if (headers["action"] == "access request")
                 {
                     try {
+                       // usleep(200);
                         _client->send_message(headers["destination"], response, 0, false);
                     } catch (std::exception &e) {
                         handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
@@ -266,6 +299,9 @@ void session::disconnect(string reason)
                         _timeout = 0;
                         handle_request(length);
                         do_write(length);
+                    } else {
+                        std::cerr << "NA READE: ";
+                        std::cerr << ec << std::endl;
                     }
                 }
         );
@@ -293,12 +329,16 @@ void session::disconnect(string reason)
 
     void session::send_message(std::string message) {
         refresh_time();
+        //sleep(1);
         auto self(shared_from_this());
         asio::async_write(
-                socket_, asio::buffer(message.c_str(), message.length()),
+                socket_, asio::buffer(message.c_str(), message.length() + 2),
                 [this, self](system::error_code ec, size_t length) {
                     if (!ec) {
                        // do_read();
+                    } else {
+                        std::cerr << "NA SENDE: ";
+                        std::cerr << ec << std::endl;
                     }
                 }
         );

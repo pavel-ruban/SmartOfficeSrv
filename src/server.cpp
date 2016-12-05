@@ -1,6 +1,6 @@
 
 #include "server.h"
-
+std::shared_ptr<session> *gsp = nullptr;
 
     server::server(asio::io_service& io_service, short port, mysql_handler *_mysql, std::vector<session*> *_sessions, client *_client)
             : acceptor_(io_service, tcp::endpoint(tcp::v4(), port)),
@@ -24,6 +24,7 @@
                     if (!ec) {
                         sp = new std::shared_ptr<session>;
                         *sp = std::make_shared<session>(std::move(socket_), mysql, sessions, sm_client);
+                       // gsp = sp;
                         sessions->push_back(sp->get());
                         (*sp)->start();
                     } else {
