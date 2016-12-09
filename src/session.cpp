@@ -16,6 +16,7 @@ std::string session::get_node_id()
         memset(transmitted_data_, 0, sizeof(transmitted_data_));
         memset(recieved_data_, 0, sizeof(recieved_data_));
         *node_id = "";
+        active = true;
         log_handler->log("Client connected.");
         log_handler->clients_amount(sessions->size() + 1);
     }
@@ -123,7 +124,7 @@ void session::force_disconnect(string reason)
     auto self(shared_from_this());
 
     asio::async_write(
-            socket_, asio::buffer(transmitted_data_, std::strlen(transmitted_data_)),
+            socket_, asio::buffer(buf, std::strlen(buf)),
             [this, self](system::error_code ec, size_t length) {
                 if (!ec) {
                     socket_.close();
@@ -147,7 +148,9 @@ void session::force_disconnect(string reason)
             }
             for (uint32_t i = 0; i < sessions->size(); i++) {
                 if (this->get_node_id() == (*sessions)[i]->get_node_id() && this != (*sessions)[i]) {
-                    (*sessions)[i]->force_disconnect("Old session with same node_id");
+                   // delete (*sessions)[i];
+                   // (*sessions)[i]->force_disconnect("Old session with same node_id");
+                    (*sessions)[i]->active = false;
                     break;
                 }
             }

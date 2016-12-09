@@ -37,6 +37,7 @@ private:
     client *_client;
 
 public:
+    bool active;
     void force_disconnect(string reason);
     void disconnect(string reason);
     void send_message(std::string message, unsigned int timeout);
@@ -55,6 +56,7 @@ public:
     map<string, string> parse_headers(string data_to_parse);
     void handle_error(string message, string dest, string origin, string action, bool log_this);
 private:
+
     std::multimap<string, string> timeout_messages;
     tcp::socket socket_;
     void handle_response(string response);

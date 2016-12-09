@@ -77,7 +77,7 @@ std::string client::send_message(std::string host, int port, std::string message
             //for (auto vit = strs.begin(); vit != strs.end(); ++vit) {
                // cout << "DEST:" << _node_id << std::endl;
                 for (auto it = _sessions->begin(); it != _sessions->end(); ++it) {
-                    if ((*it)->get_node_id() == _node_id) {
+                    if ((*it)->get_node_id() == _node_id && (*it)->active) {
                        // cout << (*it)->get_node_id() << std::endl;
                         log_handler->log_request("", _node_id, message, _timeout);
                         if (_timeout)
