@@ -7,6 +7,7 @@
 #include "session.h"
 #include "server.h"
 #include "client.h"
+#include "client_asio.h"
 
 using namespace std;
 
@@ -45,6 +46,11 @@ void invalidate_sessions()
 
 int main(int argc, char* argv[])
 {
+//    boost::asio::io_service _io_service;
+//        tcp::resolver _r(_io_service);
+//        client_asio c(_io_service);
+//
+//        c.start(_r.resolve(tcp::resolver::query("192.168.1.209", "3344")));
     short port;
     std::string database, server_address, user, password;
     property_tree::ptree pt;
