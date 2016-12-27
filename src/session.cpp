@@ -144,7 +144,8 @@ void session::force_disconnect(string reason)
             if (headers.find("node_id") != headers.end() && *node_id == "") {
                 *node_id = (*headers.find("node_id")).second;
             } else {
-                *node_id = "";
+                if (headers.find("node_id") == headers.end())
+                    *node_id = "";
             }
             for (uint32_t i = 0; i < sessions->size(); i++) {
                 if (this->get_node_id() == (*sessions)[i]->get_node_id() && this != (*sessions)[i]) {
@@ -295,7 +296,7 @@ void session::force_disconnect(string reason)
                 [this, self](system::error_code ec, size_t length)
                 {
                     if (!ec) {
-                        log_handler->log_response(socket_.remote_endpoint().address().to_string(),get_node_id(), recieved_data_);
+                        log_handler->log_response(socket_.remote_endpoint().address().to_string(), get_node_id(), recieved_data_);
                         struct timeval tp;
                         gettimeofday(&tp, NULL);
                         mslong = 0;
