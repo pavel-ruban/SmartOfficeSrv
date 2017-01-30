@@ -14,6 +14,7 @@
 #include "response_handler.h"
 #include "client.h"
 #include "logger.h"
+#include <gateway.h>
 
 class client;
 
@@ -35,8 +36,12 @@ private:
     char request_body[max_length];
     std::vector<session*> *sessions;
     client *_client;
+    gateway *_gateway;
 
 public:
+    //
+    std::map<int,string> *test = new std::map<int, string>;
+    //
     bool active;
     void force_disconnect(string reason);
     void disconnect(string reason);
@@ -49,7 +54,7 @@ public:
     char transmitted_data_[max_length];
     char recieved_data_[max_length];
     std::string get_node_id();
-    session(tcp::socket socket, mysql_handler *_mysql, std::vector<session*> *sessions, client *_client);
+    session(tcp::socket socket, mysql_handler *_mysql, std::vector<session*> *sessions, client *_client, gateway *_gateway);
     ~session();
     void start();
     void send_message(std::string message);

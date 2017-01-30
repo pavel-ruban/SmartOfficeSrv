@@ -1,7 +1,8 @@
 #include <boost/thread.hpp>
 #include "client.h"
 
-client::client(std::vector<session*> *sessions, mysql_handler *mysql) {
+client::client(std::vector<session*> *sessions, mysql_handler *mysql, gateway *_gateway) {
+    gateway_ = _gateway;
     _sessions = sessions;
     _mysql = mysql;
     log_handler = new logger(cout, cerr);
@@ -30,6 +31,7 @@ std::string client::send_message(std::string host, int port, std::string message
     boost::asio::ip::tcp::socket _socket(ios);
     try {
         _socket.connect(endpoint);
+        message = gateway_->magic(message);
         boost::array<char, 2048> buf;
         std::copy(message.begin(), message.end(), buf.begin());
         boost::system::error_code error;

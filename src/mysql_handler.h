@@ -23,6 +23,7 @@ public:
     bool connected = false;
     mysql_handler();
     ~mysql_handler();
+    std::map<string, string> get_config();
     void connect(string database, string address, string user, string password);
     mysql_handler(string database, string address, string user, string password);
     std::pair<string, short> get_host_by_id(string node_id);

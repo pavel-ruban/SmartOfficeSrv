@@ -18,6 +18,30 @@ void mysql_handler::connect(string database, string address, string user, string
         cerr << e.what();
     }
 }
+std::map<string, string> mysql_handler::get_config() {
+    std::map<string, string> config;
+    if (connected)
+    {
+        try
+        {
+            mysqlpp::Query query = conn->query("SELECT * from config");
+            mysqlpp::StoreQueryResult res = query.store();
+            if (res)
+            {
+                mysqlpp::StoreQueryResult::const_iterator it;
+                for (it = res.begin(); it != res.end(); ++it)
+                {
+                    mysqlpp::Row row = *it;
+                    config[row[0].c_str()] = row[1].c_str();
+                }
+            }
+            return config;
+        }
+        catch (mysqlpp::Exception e) {
+            cerr << e.what();
+        }
+    }
+}
 
 mysql_handler::mysql_handler(string database, string address, string user, string password)
 {

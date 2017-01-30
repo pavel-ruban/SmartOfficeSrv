@@ -8,8 +8,9 @@ std::string session::get_node_id()
         } else return "Unathorized";
     }
 
-    session::session(tcp::socket socket, mysql_handler *_mysql, std::vector<session*> *_sessions, client *sclient) : socket_(std::move(socket))
+    session::session(tcp::socket socket, mysql_handler *_mysql, std::vector<session*> *_sessions, client *sclient, gateway *gateway_) : socket_(std::move(socket))
     {
+        _gateway = gateway_;
         sessions = _sessions;
         mysql = _mysql;
         _client = sclient;
@@ -160,6 +161,25 @@ void session::force_disconnect(string reason)
             string result("");
             if (mysql->is_user_exists(*node_id))
             {
+                if (headers["action"] == "ack")
+                {
+                    try {
+                        mysql->refresh();
+                        if (mysql->get_type(*node_id) == "pcd") {
+                            if (headers.count("destination") <= 0) {
+                                result = _client->send_message(string(recieved_data_), default_timeout, true);
+                            } else {
+                                result = _client->send_message(headers["destination"], string(recieved_data_),
+                                                               default_timeout, true);
+                            }
+                           // if (result != "local_handle%")
+                           //     handle_response(result);
+                        }
+                    } catch (std::exception &e) {
+                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                    }
+                }
+
                 if (headers["action"] == "call")
                 {
                     try {
@@ -205,6 +225,37 @@ void session::force_disconnect(string reason)
                             } else {
                                 result = _client->send_message(headers["destination"], string(recieved_data_),
                                                                default_timeout, true);
+                            }
+                            if (result != "local_handle%")
+                                handle_response(result);
+                        }
+                    } catch (std::exception &e) {
+                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                    }
+                }
+
+                if (headers["action"] == "event dump") //Dummy
+                {
+                    try {
+                        mysql->refresh();
+                        if (mysql->get_type(*node_id) == "pcd") {
+                            if (headers.count("destination") <= 0) {
+                                if (headers.count("destination") <= 0) {
+                                    result = _client->send_message(string(recieved_data_), default_timeout, true);
+                                } else {
+                                    result = _client->send_message(headers["destination"], string(recieved_data_),
+                                                                   default_timeout, true);
+                                }
+                                if (result != "local_handle%")
+                                    handle_response(result);
+                                //result = _client->send_message(string(recieved_data_), default_timeout, true);
+                                //std::string buf = "";
+                                //buf += "node_id: bo_test\naction: cache dump\nstatus: 200\nuid: " + headers["uid"] + "\npcd number: " + headers["pcd number"] + "\ntime: " + headers["time"] + "\n\n\n";
+                                //_client->send_message(headers["node_id"], buf,
+                                //                              default_timeout, true);
+                            } else {
+                                //result = _client->send_message(headers["destination"], string(recieved_data_),
+                                //                               default_timeout, true);
                             }
                             if (result != "local_handle%")
                                 handle_response(result);
@@ -273,6 +324,14 @@ void session::force_disconnect(string reason)
                 {
                     try {
                        // usleep(200);
+                        _client->send_message(headers["destination"], response, 0, false);
+                    } catch (std::exception &e) {
+                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                    }
+                }
+                if (headers["action"] == "event dump")
+                {
+                    try {
                         _client->send_message(headers["destination"], response, 0, false);
                     } catch (std::exception &e) {
                         handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
@@ -363,3 +422,15 @@ void session::send_message(std::string message, unsigned int timeout) {
             }
     );
 }
+
+
+//void session::Shutdown()
+//{
+//    try {
+//        socket_.shutdown(socket_.shutdown_both);
+//        socket_->close();
+//    } catch (std::exception &e)
+//    {
+//        std::cout << "Error Closing Socket" << e.what() << std::endl;
+//    }
+//}
