@@ -24,7 +24,7 @@ std::string session::get_node_id()
 
     session::~session()
     {
-        cout << "[LOG]: SESSION DC (node_id: " << this->get_node_id() << ")" << std::endl;
+        cout << "[LOG]: SESSION DC (node-id: " << this->get_node_id() << ")" << std::endl;
         for (auto it=timeout_messages.begin(); it!=timeout_messages.end(); ++it) {
             _client->send_message((*it).first, (*it).second, 0, false);
         }
@@ -72,10 +72,13 @@ std::string session::get_node_id()
 
         for(vector<string>::iterator it = strs.begin(); it != strs.end(); ++it)
         {
-            buf.clear();
-            split(buf,*it,is_any_of(":"));
-            if (buf[0] != "" && buf.size() > 1)
-                headers[buf[0]] = buf[1].substr(1,buf[1].size());
+            size_t delim_pos = (*it).find(": ");
+            if (delim_pos == string::npos)
+                continue;
+            string header_name = (*it).substr(0, delim_pos);
+            string header_val = (*it).substr(delim_pos + 2, (*it).length() - delim_pos);
+            if (header_name != "" && header_val != "")
+                headers[header_name] = header_val;
         }
         return headers;
     }
@@ -94,14 +97,14 @@ void session::handle_error(string message, string dest, string origin, string ac
         if (log_this)
             cout << "Connection refused (Server " << dest << " is down?)." << std::endl;
         _client->send_message(origin,
-                              "status: 0\nnode_id: " + dest + "\ndestination: " + origin + "\naction: " + action +
+                              "status: 0\nnode-id: " + dest + "\ndestination: " + origin + "\naction: " + action +
                               "\n\n", 0, false);
     }
     if (message.find("Client timed out") != std::string::npos) {
         if (log_this)
             cout << "Client timed out (Server " << dest << " is down?)." << std::endl;
         _client->send_message(origin,
-                              "status: 408\nnode_id: " + dest + "\ndestination: " + origin + "\naction: " + action +
+                              "status: 408\nnode-id: " + dest + "\ndestination: " + origin + "\naction: " + action +
                               "\n\n", 0, false);
     }
 }
@@ -138,14 +141,14 @@ void session::force_disconnect(string reason)
     void session::handle_request(size_t length) {
         map<string,string> headers = parse_headers(string(recieved_data_));
         // Если запрос не содержит идентификатор.
-        if (headers.find("node_id") == headers.end()) {
+        if (headers.find("node-id") == headers.end()) {
             log_handler->log(get_node_id(), "Request w/o auth info/bad request.");
             strcpy(transmitted_data_, "status: 400\n");
         } else {
-            if (headers.find("node_id") != headers.end() && *node_id == "") {
-                *node_id = (*headers.find("node_id")).second;
+            if (headers.find("node-id") != headers.end() && *node_id == "") {
+                *node_id = (*headers.find("node-id")).second;
             } else {
-                if (headers.find("node_id") == headers.end())
+                if (headers.find("node-id") == headers.end())
                     *node_id = "";
             }
             for (uint32_t i = 0; i < sessions->size(); i++) {
@@ -176,7 +179,7 @@ void session::force_disconnect(string reason)
                            //     handle_response(result);
                         }
                     } catch (std::exception &e) {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                        handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                     }
                 }
 
@@ -191,9 +194,9 @@ void session::force_disconnect(string reason)
                         handle_response(result);
                     } catch (std::exception &e){
                         if (headers.count("destination") > 0)
-                            handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                            handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                         else
-                            handle_error(string(e.what()), mysql->default_node_id, headers["node_id"], headers["action"], true);
+                            handle_error(string(e.what()), mysql->default_node_id, headers["node-id"], headers["action"], true);
                     }
                 }
                 if (headers["action"] == "open")
@@ -205,6 +208,7 @@ void session::force_disconnect(string reason)
                         if (mysql->get_type(*node_id) == "bo") {
                             result = _client->send_message(headers["destination"], string(recieved_data_), default_timeout, true);
                             if (result != "local_handle%")
+                                //result = _gateway->magic(result); //Костыль.
                                 handle_response(result);
                         }
                         if (mysql->get_type(*node_id) == "pcd") {
@@ -212,7 +216,7 @@ void session::force_disconnect(string reason)
                         }
                     } catch (std::exception &e)
                     {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                        handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                     }
                 }
                 if (headers["action"] == "access request")
@@ -227,10 +231,11 @@ void session::force_disconnect(string reason)
                                                                default_timeout, true);
                             }
                             if (result != "local_handle%")
+                                //result = _gateway->magic(result); //Костыль.
                                 handle_response(result);
                         }
                     } catch (std::exception &e) {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                        handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                     }
                 }
 
@@ -247,11 +252,12 @@ void session::force_disconnect(string reason)
                                                                    default_timeout, true);
                                 }
                                 if (result != "local_handle%")
+                                    //result = _gateway->magic(result); //Костыль.
                                     handle_response(result);
                                 //result = _client->send_message(string(recieved_data_), default_timeout, true);
                                 //std::string buf = "";
                                 //buf += "node_id: bo_test\naction: cache dump\nstatus: 200\nuid: " + headers["uid"] + "\npcd number: " + headers["pcd number"] + "\ntime: " + headers["time"] + "\n\n\n";
-                                //_client->send_message(headers["node_id"], buf,
+                                //_client->send_message(headers["node-id"], buf,
                                 //                              default_timeout, true);
                             } else {
                                 //result = _client->send_message(headers["destination"], string(recieved_data_),
@@ -261,7 +267,7 @@ void session::force_disconnect(string reason)
                                 handle_response(result);
                         }
                     } catch (std::exception &e) {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                        handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                     }
                 }
             } else {
@@ -274,42 +280,42 @@ void session::force_disconnect(string reason)
 
     void session::handle_response(string response) {
         map<string,string> headers = parse_headers(response);
-        if(headers.count("node_id") > 0)
+        if(headers.count("node-id") > 0)
         {
-            if (mysql->is_user_exists(headers["node_id"]))
+            if (mysql->is_user_exists(headers["node-id"]))
             {
                 if (headers["action"] == "call")
                 {
                     bool call_active = false;
                     string _response("");
                     try {
-                        _response = _client->send_message(headers["destination"], string("node_id: ") + headers["node_id"] +
+                        _response = _client->send_message(headers["destination"], string("node-id: ") + headers["node-id"] +
                                                                                   string("\naction: call\ndestination: " +
                                                                                          headers["destination"]), default_timeout, true);
                         call_active = true;
                         try {
                             auto bufheaders = parse_headers(_response);
                             _client->send_message(bufheaders["destination"],
-                                                  "status: " + bufheaders["status"] + "\nnode_id: " +
-                                                  bufheaders["node_id"]
+                                                  "status: " + bufheaders["status"] + "\nnode-id: " +
+                                                  bufheaders["node-id"]
                                                   + "\naction: " + bufheaders["action"] + "\ndestination: " +
                                                   bufheaders["destination"] + "\n\n", 0, false);
-                            _client->send_message(headers["node_id"],
-                                                  "status: " + bufheaders["status"] + "\nnode_id: " +
-                                                  bufheaders["node_id"]
+                            _client->send_message(headers["node-id"],
+                                                  "status: " + bufheaders["status"] + "\nnode-id: " +
+                                                  bufheaders["node-id"]
                                                   + "\naction: " + bufheaders["action"] + "\ndestination: " +
-                                                          headers["node_id"] + "\n\n", 0, false);
+                                                          headers["node-id"] + "\n\n", 0, false);
                         } catch (std::exception &e) {
 
                         }
                     } catch (std::exception &e) {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                        handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                         handle_error(string(e.what()), headers["destination"], get_node_id(), headers["action"], false);
-//                        _client->send_message(headers["node_id"],
-//                                              "status: 0\nnode_id: " +
+//                        _client->send_message(headers["node-id"],
+//                                              "status: 0\nnode-id: " +
 //                                              headers["destination"]
 //                                              + "\naction: " + headers["action"] + "\ndestination: " +
-//                                              headers["node_id"] + "\n\n", 0);
+//                                              headers["node-id"] + "\n\n", 0);
                     }
                 }
                 if (headers["action"] == "open")
@@ -317,7 +323,7 @@ void session::force_disconnect(string reason)
                     try {
                         _client->send_message(headers["destination"], response, 0, false);
                     } catch (std::exception &e) {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                        handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                     }
                 }
                 if (headers["action"] == "access request")
@@ -326,7 +332,7 @@ void session::force_disconnect(string reason)
                        // usleep(200);
                         _client->send_message(headers["destination"], response, 0, false);
                     } catch (std::exception &e) {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                        handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                     }
                 }
                 if (headers["action"] == "event dump")
@@ -334,7 +340,7 @@ void session::force_disconnect(string reason)
                     try {
                         _client->send_message(headers["destination"], response, 0, false);
                     } catch (std::exception &e) {
-                        handle_error(string(e.what()), headers["destination"], headers["node_id"], headers["action"], true);
+                        handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                     }
                 }
             } else {
@@ -409,7 +415,7 @@ void session::force_disconnect(string reason)
 
 void session::send_message(std::string message, unsigned int timeout) {
     auto headers = parse_headers(message);
-    timeout_messages.insert(std::make_pair(headers["node_id"], "node_id: " + get_node_id() +"\nstatus: 408\naction: " + headers["action"] + "\n\n"));
+    timeout_messages.insert(std::make_pair(headers["node-id"], "node-id: " + get_node_id() +"\nstatus: 408\naction: " + headers["action"] + "\n\n"));
     _timeout = timeout;
     refresh_time();
     auto self(shared_from_this());

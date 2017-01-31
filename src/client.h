@@ -25,7 +25,10 @@ private:
     mysql_handler *_mysql;
     logger *log_handler;
     gateway *gateway_;
+    string api_key;
+    string bearer;
 public:
+    void bo_auth();
     void sam();
     void my_read_until(boost::asio::ip::tcp::socket *_socket, boost::asio::streambuf *_response);
     client(std::vector<session *> *sessions, mysql_handler *mysql, gateway *_gateway);

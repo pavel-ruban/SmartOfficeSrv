@@ -22,6 +22,11 @@ void client::my_read_until(boost::asio::ip::tcp::socket *_socket, boost::asio::s
     }
 }
 
+void client::bo_auth() { //Костыльно.
+    api_key = gateway_->get_config()->get_variable("API:auth:Api-key");
+    string secret_key = gateway_->get_config()->get_variable("API:auth:Secret-key");
+}
+
 std::string client::send_message(std::string host, int port, std::string message, unsigned int _timeout, bool dnd) {
     boost::system::error_code ec;
     boost::asio::io_service ios;
@@ -54,11 +59,11 @@ std::string client::send_message(std::string host, int port, std::string message
             delete newthread;
         } else
             if (dnd)
-            boost::asio::read_until(_socket, _response, "\n\n");
+            boost::asio::read_until(_socket, _response, "\0");
         _socket.close();
         std::string s( (std::istreambuf_iterator<char>(&_response)), std::istreambuf_iterator<char>() );
         log_handler->log_response(host + ":" + std::to_string(port),"", s);
-        return s;
+        return gateway_->magic(s);
 
     } catch (std::exception &e) {
         throw;
@@ -81,6 +86,7 @@ std::string client::send_message(std::string host, int port, std::string message
                 for (auto it = _sessions->begin(); it != _sessions->end(); ++it) {
                     if ((*it)->get_node_id() == _node_id && (*it)->active) {
                        // cout << (*it)->get_node_id() << std::endl;
+
                         log_handler->log_request("", _node_id, message, _timeout);
                         if (_timeout)
                             (*it)->send_message(message, _timeout);

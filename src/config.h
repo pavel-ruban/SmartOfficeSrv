@@ -31,6 +31,7 @@ private:
     std::map <std::string, std::string> vars;
     short port;
     std::string database, server_address, user, password;
+    string _bearer = "";
     //config(config const&); // реализация не нужна
     //config& operator= (config const&);  // и тут
 public:
@@ -39,6 +40,8 @@ public:
     ~config();
     config(std::string filename, mysql_handler &mysql);
     short get_port();
+    string get_bearer();
+    void set_bearer(string bearer);
     std::string get_variable(std::string name);
 };
 

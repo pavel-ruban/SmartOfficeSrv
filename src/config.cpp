@@ -1,6 +1,14 @@
 #include "config.h"
 
 
+string config::get_bearer() {
+    return _bearer;
+}
+
+void config::set_bearer(string bearer){
+    _bearer = bearer;
+}
+
 
 config::config(std::string filename, mysql_handler &mysql) {
     boost::property_tree::ptree pt;
@@ -27,6 +35,7 @@ std::map <std::string, std::string> config::get_vars() {
 short config::get_port() {
     return this->port;
 }
+
 
 std::string config::get_variable(std::string name) {
     if (!initialized) {

@@ -25,18 +25,13 @@ class gateway
 public:
     std::string convert(string request);
     std::string magic(string req);
+    config* get_config();
     //void bind_mysql();
     gateway(mysql_handler *mysql, config *_config);
     ~gateway() {  }
-
 private:
     mysql_handler *_mysql;
     config *_config;
-
-
-    // необходимо также запретить копирование
-    //gateway(gateway const&); // реализация не нужна
-    //gateway& operator= (gateway const&);  // и тут
 };
 
 
@@ -63,4 +58,18 @@ public:
     native_to_http(std::string request, config *_config);
     virtual std::string convert();
 
+};
+
+class http_to_native : public converter
+{
+protected:
+    map<string, string> parse_headers(string data_to_parse);
+private:
+    std::string request;
+    config *_config;
+    map<string, string> conf_vars;
+public:
+    virtual ~http_to_native();
+    http_to_native(std::string request, config *_config);
+    virtual std::string convert();
 };

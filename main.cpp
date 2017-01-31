@@ -70,8 +70,8 @@ int main(int argc, char* argv[])
    // mysql->print_hashes();
     //native_to_http biba("node_id: biba\naction: access request\ndestination: bo_test\n\n\n", _config);
     //std::string test = biba.convert();
-    string test = _gateway.magic("node_id: biba\naction: access request\ndestination: bo_test\n\n\n");
-    string test1 = _gateway.magic("node_id: biba\naction: access request\ndestination: node_test\n\n\n");
+    //string test = _gateway.magic("node-id: biba\naction: access request\ndestination: bo_test\n\n\n");
+    //string test1 = _gateway.magic("node-id: biba\naction: access request\ndestination: node_test\n\n\n");
 //    _gateway.convert("");
     try {
         boost::thread{*invalidate_sessions};

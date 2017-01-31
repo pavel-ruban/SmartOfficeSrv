@@ -47,17 +47,21 @@ string response_handler::handle(string data, size_t length, session *session) {
 
     for(vector<string>::iterator it = strs.begin(); it != strs.end(); ++it)
     {
-        buf.clear();
-        split(buf,*it,is_any_of(":"));
-        headers[buf[0]] = buf[1].substr(1,buf[1].size());
+        size_t delim_pos = (*it).find(": ");
+        if (delim_pos == string::npos)
+            continue;
+        string header_name = (*it).substr(0, delim_pos);
+        string header_val = (*it).substr(delim_pos + 2, (*it).length() - delim_pos);
+        if (header_name != "" && header_val != "")
+            headers[header_name] = header_val;
     }
 
     // Если запрос не содержит идентификатор.
-    if (headers.find("node_id") == headers.end()) {
+    if (headers.find("node-id") == headers.end()) {
         strcpy(session->transmitted_data_, "status: 400\n");
     } else {
-        if (headers.find("node_id") != headers.end()) {
-            *session->node_id = (*headers.find("node_id")).second;
+        if (headers.find("node-id") != headers.end()) {
+            *session->node_id = (*headers.find("node-id")).second;
         } else
             *session->node_id = "";
 
