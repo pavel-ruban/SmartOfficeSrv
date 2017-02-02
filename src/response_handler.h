@@ -2,6 +2,9 @@
 #include "server.h"
 #include "session.h"
 
+class server;
+class session;
+
 class response_handler
 {
 private:
