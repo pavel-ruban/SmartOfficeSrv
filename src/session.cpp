@@ -164,7 +164,7 @@ void session::force_disconnect(string reason)
             string result("");
             if (mysql->is_user_exists(*node_id))
             {
-                if (headers["action"] == "ack")
+                if (headers["action"] == "time-sync")
                 {
                     try {
                         mysql->refresh();
@@ -175,8 +175,8 @@ void session::force_disconnect(string reason)
                                 result = _client->send_message(headers["destination"], string(recieved_data_),
                                                                default_timeout, true);
                             }
-                           // if (result != "local_handle%")
-                           //     handle_response(result);
+                            if (result != "local_handle%")
+                                handle_response(result);
                         }
                     } catch (std::exception &e) {
                         handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
@@ -263,8 +263,8 @@ void session::force_disconnect(string reason)
                                 //result = _client->send_message(headers["destination"], string(recieved_data_),
                                 //                               default_timeout, true);
                             }
-                            if (result != "local_handle%")
-                                handle_response(result);
+//                            if (result != "local_handle%")
+//                                handle_response(result);
                         }
                     } catch (std::exception &e) {
                         handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
@@ -336,6 +336,14 @@ void session::force_disconnect(string reason)
                     }
                 }
                 if (headers["action"] == "event dump")
+                {
+                    try {
+                        _client->send_message(headers["destination"], response, 0, false);
+                    } catch (std::exception &e) {
+                        handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
+                    }
+                }
+                if (headers["action"] == "time-sync")
                 {
                     try {
                         _client->send_message(headers["destination"], response, 0, false);

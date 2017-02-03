@@ -66,6 +66,7 @@ std::string client::send_message(std::string host, int port, std::string message
         return gateway_->magic(s);
 
     } catch (std::exception &e) {
+        cout << e.what() << std::endl;
         throw;
     }
 }
