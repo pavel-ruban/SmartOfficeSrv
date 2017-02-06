@@ -220,6 +220,14 @@ map<string, string> http_to_native::parse_headers(string data_to_parse) {
         if (header_name != "" && header_val != "")
             headers[header_name] = header_val;
     }
+    if (data_to_parse.find("\"invalidate\":1") != string::npos) {
+        string inv_to = "";
+        if (data_to_parse.find("\"access\":0") != string::npos)
+            inv_to = "denied";
+        if (data_to_parse.find("\"access\":1") != string::npos)
+            inv_to = "granted";
+        headers["invalidate-cache"] = inv_to;
+    }
     return headers;
 }
 
