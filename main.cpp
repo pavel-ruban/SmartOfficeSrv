@@ -26,8 +26,8 @@ asio::io_service io_service;
 void start_server(short port)
 {
     sm_client = new client(sessions, mysql, &_gateway);
-    s = new server(io_service, port, mysql, sessions, sm_client, &_gateway);
-    io_service.run();
+    s = new server(port, mysql, sessions, sm_client, &_gateway);
+
 }
 
 void invalidate_sessions()

@@ -347,10 +347,43 @@ void session::force_disconnect(string reason)
         }
     }
 
+void session::handle_read(const boost::system::error_code& err,
+                      std::size_t bytes_transferred)
+{
+    if (err)
+    {
+        //disconnect();
+    }
+    else
+    {
+        do_write(bytes_transferred);
+    }
+}
+
     void session::do_read()
     {
         auto self(shared_from_this());
-        socket_.async_read_some(
+//        async_read(socket_, boost::asio::buffer(recieved_data_, max_length),
+//                   boost::bind(&session::handle_read, shared_from_this(),
+//                               boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
+
+//        asio::async_read(socket_, asio::buffer(recieved_data_, max_length), [this, self](system::error_code ec, size_t length)
+//        {
+//            if (!ec) {
+//                log_handler->log_response(socket_.remote_endpoint().address().to_string(), get_node_id(), recieved_data_);
+//                struct timeval tp;
+//                gettimeofday(&tp, NULL);
+//                mslong = 0;
+//                _timeout = 0;
+//                handle_request(length);
+//                do_write(length);
+//            } else {
+//                std::cerr << "NA READE: ";
+//                std::cerr << ec << std::endl;
+//            }
+//        });
+
+        socket_.async_receive(
                 asio::buffer(recieved_data_, max_length),
                 [this, self](system::error_code ec, size_t length)
                 {
