@@ -109,7 +109,7 @@ native_to_http::~native_to_http() {
 
 }
 
-native_to_http::native_to_http(std::string request, config *_config){
+native_to_http::native_to_http(std::string request, config *_config) {
     this->_config = _config;
     this->request = request;
 }
@@ -175,7 +175,7 @@ std::string native_to_http::convert() {
 }
 
 //-----------------------------------------------------------------------------
-http_to_native::http_to_native(std::string request, config *_config){
+http_to_native::http_to_native(std::string request, config *_config) {
     this->_config = _config;
     this->request = request;
 }

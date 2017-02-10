@@ -5,10 +5,9 @@ string config::get_bearer() {
     return _bearer;
 }
 
-void config::set_bearer(string bearer){
+void config::set_bearer(string bearer) {
     _bearer = bearer;
 }
-
 
 config::config(std::string filename, mysql_handler &mysql) {
     boost::property_tree::ptree pt;
@@ -24,7 +23,7 @@ config::config(std::string filename, mysql_handler &mysql) {
     initialized = true;
 }
 
-config::~config(){
+config::~config() {
 
 }
 
