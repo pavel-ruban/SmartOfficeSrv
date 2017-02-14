@@ -50,29 +50,8 @@ void invalidate_sessions()
 
 int main(int argc, char* argv[])
 {
-//    boost::asio::io_service _io_service;
-//        tcp::resolver _r(_io_service);
-//        client_asio c(_io_service);
-//
-//        c.start(_r.resolve(tcp::resolver::query("192.168.1.209", "3344")));
     short port = _config->get_port();
-//    std::string database, server_address, user, password;
-//    property_tree::ptree pt;
-//    property_tree::ini_parser::read_ini("config.ini", pt);
-//    istringstream (pt.get<string>("General.port")) >> port;
-//    istringstream (pt.get<string>("MySQL.database")) >> database;
-//    istringstream (pt.get<string>("MySQL.address")) >> server_address;
-//    istringstream (pt.get<string>("MySQL.user")) >> user;
-//    istringstream (pt.get<string>("MySQL.password")) >> password;
     cout << port << std::endl;
-//    mysql->connect(database, server_address, user, password);
-//    mysql->refresh();
-   // mysql->print_hashes();
-    //native_to_http biba("node_id: biba\naction: access request\ndestination: bo_test\n\n\n", _config);
-    //std::string test = biba.convert();
-    //string test = _gateway.magic("node-id: biba\naction: access request\ndestination: bo_test\n\n\n");
-    //string test1 = _gateway.magic("node-id: biba\naction: access request\ndestination: node_test\n\n\n");
-//    _gateway.convert("");
     try {
         boost::thread{*invalidate_sessions};
         boost::thread{*start_server, port};

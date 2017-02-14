@@ -162,8 +162,6 @@ std::string native_to_http::convert() {
 
             typedef std::map<std::string, std::string>::iterator it_type;
             for(it_type iterator = headers.begin(); iterator != headers.end(); iterator++) {
-                // iterator->first = key
-                // iterator->second = value
                 result += iterator->first + ": " + iterator->second + "\n";
             }
             result+="\n";
