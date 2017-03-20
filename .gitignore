@@ -1,0 +1,8 @@
+.idea
+*.swp
+CMakeCache.txt
+CMakeFiles/
+Debug/
+Makefile
+cmake_install.cmake
+smartoffice_srv
