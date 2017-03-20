@@ -164,7 +164,7 @@ void session::force_disconnect(string reason)
             string result("");
             if (mysql->is_user_exists(*node_id))
             {
-                if (headers["action"] == "ack")
+                if (headers["action"] == "time-sync")
                 {
                     try {
                         mysql->refresh();
@@ -175,8 +175,8 @@ void session::force_disconnect(string reason)
                                 result = _client->send_message(headers["destination"], string(recieved_data_),
                                                                default_timeout, true);
                             }
-                           // if (result != "local_handle%")
-                           //     handle_response(result);
+                            if (result != "local_handle%")
+                                handle_response(result);
                         }
                     } catch (std::exception &e) {
                         handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
@@ -192,7 +192,7 @@ void session::force_disconnect(string reason)
                             result = _client->send_message(headers["destination"], string(recieved_data_), default_timeout, true);
                         }
                         handle_response(result);
-                    } catch (std::exception &e){
+                    } catch (std::exception &e) {
                         if (headers.count("destination") > 0)
                             handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                         else
@@ -254,17 +254,8 @@ void session::force_disconnect(string reason)
                                 if (result != "local_handle%")
                                     //result = _gateway->magic(result); //Костыль.
                                     handle_response(result);
-                                //result = _client->send_message(string(recieved_data_), default_timeout, true);
-                                //std::string buf = "";
-                                //buf += "node_id: bo_test\naction: cache dump\nstatus: 200\nuid: " + headers["uid"] + "\npcd number: " + headers["pcd number"] + "\ntime: " + headers["time"] + "\n\n\n";
-                                //_client->send_message(headers["node-id"], buf,
-                                //                              default_timeout, true);
                             } else {
-                                //result = _client->send_message(headers["destination"], string(recieved_data_),
-                                //                               default_timeout, true);
                             }
-                            if (result != "local_handle%")
-                                handle_response(result);
                         }
                     } catch (std::exception &e) {
                         handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
@@ -311,11 +302,6 @@ void session::force_disconnect(string reason)
                     } catch (std::exception &e) {
                         handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                         handle_error(string(e.what()), headers["destination"], get_node_id(), headers["action"], false);
-//                        _client->send_message(headers["node-id"],
-//                                              "status: 0\nnode-id: " +
-//                                              headers["destination"]
-//                                              + "\naction: " + headers["action"] + "\ndestination: " +
-//                                              headers["node-id"] + "\n\n", 0);
                     }
                 }
                 if (headers["action"] == "open")
@@ -343,6 +329,14 @@ void session::force_disconnect(string reason)
                         handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
                     }
                 }
+                if (headers["action"] == "time-sync")
+                {
+                    try {
+                        _client->send_message(headers["destination"], response, 0, false);
+                    } catch (std::exception &e) {
+                        handle_error(string(e.what()), headers["destination"], headers["node-id"], headers["action"], true);
+                    }
+                }
             } else {
                 _client->send_message(*node_id, "status: server error\n", 0, false);
                 return;
@@ -353,10 +347,43 @@ void session::force_disconnect(string reason)
         }
     }
 
+void session::handle_read(const boost::system::error_code& err,
+                      std::size_t bytes_transferred)
+{
+    if (err)
+    {
+        //disconnect();
+    }
+    else
+    {
+        do_write(bytes_transferred);
+    }
+}
+
     void session::do_read()
     {
         auto self(shared_from_this());
-        socket_.async_read_some(
+//        async_read(socket_, boost::asio::buffer(recieved_data_, max_length),
+//                   boost::bind(&session::handle_read, shared_from_this(),
+//                               boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
+
+//        asio::async_read(socket_, asio::buffer(recieved_data_, max_length), [this, self](system::error_code ec, size_t length)
+//        {
+//            if (!ec) {
+//                log_handler->log_response(socket_.remote_endpoint().address().to_string(), get_node_id(), recieved_data_);
+//                struct timeval tp;
+//                gettimeofday(&tp, NULL);
+//                mslong = 0;
+//                _timeout = 0;
+//                handle_request(length);
+//                do_write(length);
+//            } else {
+//                std::cerr << "NA READE: ";
+//                std::cerr << ec << std::endl;
+//            }
+//        });
+
+        socket_.async_receive(
                 asio::buffer(recieved_data_, max_length),
                 [this, self](system::error_code ec, size_t length)
                 {
@@ -398,7 +425,6 @@ void session::force_disconnect(string reason)
 
     void session::send_message(std::string message) {
         refresh_time();
-        //sleep(1);
         auto self(shared_from_this());
         asio::async_write(
                 socket_, asio::buffer(message.c_str(), message.length() + 2),
@@ -429,14 +455,3 @@ void session::send_message(std::string message, unsigned int timeout) {
     );
 }
 
-
-//void session::Shutdown()
-//{
-//    try {
-//        socket_.shutdown(socket_.shutdown_both);
-//        socket_->close();
-//    } catch (std::exception &e)
-//    {
-//        std::cout << "Error Closing Socket" << e.what() << std::endl;
-//    }
-//}

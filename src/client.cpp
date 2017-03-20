@@ -66,6 +66,7 @@ std::string client::send_message(std::string host, int port, std::string message
         return gateway_->magic(s);
 
     } catch (std::exception &e) {
+        cout << e.what() << std::endl;
         throw;
     }
 }
@@ -73,20 +74,8 @@ std::string client::send_message(std::string host, int port, std::string message
     string client::send_message(std::string _node_id, std::string message, unsigned int _timeout, bool dnd) {
 
         try {
-            //vector<string> strs;
-            //_node_id.erase(std::remove_if(_node_id.begin(),
-            //                          _node_id.end(),
-            //                          [](char x){return std::isspace(x);}),
-            //           _node_id.end());
-            //cout << _node_id << std::endl;
-            //split(strs,_node_id,is_any_of(","));
-            //cout << strs[0] << " " << strs[1] << endl;
-            //for (auto vit = strs.begin(); vit != strs.end(); ++vit) {
-               // cout << "DEST:" << _node_id << std::endl;
                 for (auto it = _sessions->begin(); it != _sessions->end(); ++it) {
                     if ((*it)->get_node_id() == _node_id && (*it)->active) {
-                       // cout << (*it)->get_node_id() << std::endl;
-
                         log_handler->log_request("", _node_id, message, _timeout);
                         if (_timeout)
                             (*it)->send_message(message, _timeout);
@@ -117,7 +106,6 @@ std::string client::send_message(std::string host, int port, std::string message
                 it++;
         }
         message.append("\ndestination: " + _mysql->default_node_id + "\n\n");
-       // log_handler->log_request((_mysql->get_default_host().first + ":" + std::to_string(_mysql->get_default_host().second)), "", message, _timeout);
         return send_message(_mysql->get_default_host().first, _mysql->get_default_host().second, message, _timeout, dnd);
     }
 

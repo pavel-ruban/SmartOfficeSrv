@@ -15,6 +15,8 @@
 #include "client.h"
 #include "logger.h"
 #include <gateway.h>
+#include <boost/asio/read.hpp>
+#include <boost/asio/placeholders.hpp>
 
 class client;
 
@@ -60,12 +62,15 @@ public:
     void send_message(std::string message);
     map<string, string> parse_headers(string data_to_parse);
     void handle_error(string message, string dest, string origin, string action, bool log_this);
+
 private:
 
     std::multimap<string, string> timeout_messages;
     tcp::socket socket_;
     void handle_response(string response);
     void handle_request(size_t length);
+    void handle_read(const boost::system::error_code& err,
+                              std::size_t bytes_transferred);
     void do_read();
     void do_write(size_t length);
 };

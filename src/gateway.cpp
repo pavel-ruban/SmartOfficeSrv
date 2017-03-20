@@ -1,3 +1,5 @@
+#include <stdio.h>      /* printf, fgets */
+#include <stdlib.h>
 #include "gateway.h"
 
 
@@ -107,7 +109,7 @@ native_to_http::~native_to_http() {
 
 }
 
-native_to_http::native_to_http(std::string request, config *_config){
+native_to_http::native_to_http(std::string request, config *_config) {
     this->_config = _config;
     this->request = request;
 }
@@ -128,18 +130,38 @@ std::string native_to_http::convert() {
     } else {
         if ( headers.find("destination") == headers.end() ) {
             throw bad_request();
-        } else {
+        }
+        else
+        {
+            if (headers.find("uid") != headers.end() ) {
+                string buf = headers["uid"];
+                vector<string> strs;
+                split(strs, buf, is_any_of("-"));
+                char hex_buf[20] = {0};
+
+                sprintf(
+                        hex_buf,
+                        "%X:%X:%X:%X",
+                        atoi(strs[0].c_str()),
+                        atoi(strs[1].c_str()),
+                        atoi(strs[2].c_str()),
+                        atoi(strs[3].c_str())
+                );
+
+                headers["uid"] = string(hex_buf);
+            }
+
             result = get_html_headers(headers["action"], headers["destination"]);
+
             if (headers["destination"] == "bo_test") {
                 result += "Authorization:Api-key " + _config->get_variable("API:auth:Api-key") + "\n";
 //                if (_config->get_bearer() != "") {
 //                    result += "X-Api-Authorization:Bearer " + _config->get_bearer() + "\n";
 //                }
             }
+
             typedef std::map<std::string, std::string>::iterator it_type;
             for(it_type iterator = headers.begin(); iterator != headers.end(); iterator++) {
-                // iterator->first = key
-                // iterator->second = value
                 result += iterator->first + ": " + iterator->second + "\n";
             }
             result+="\n";
@@ -151,7 +173,7 @@ std::string native_to_http::convert() {
 }
 
 //-----------------------------------------------------------------------------
-http_to_native::http_to_native(std::string request, config *_config){
+http_to_native::http_to_native(std::string request, config *_config) {
     this->_config = _config;
     this->request = request;
 }
@@ -181,8 +203,28 @@ map<string, string> http_to_native::parse_headers(string data_to_parse) {
         string header_val = (*it).substr(delim_pos + 2, (*it).length() - delim_pos - 3);
         if (header_name[0] > 0x40 && header_name[0] < 0x5B)
             continue;
+        if (header_name == "uid") {
+            vector<string> st;
+            string str = header_val;
+            split(st, str, boost::is_any_of(":"));
+            char buf_c[20] = {0};
+            uint8_t uid[4];
+            for (uint8_t i = 0; i < 4; ++i) {
+                uid[i] = strtoul(st[i].substr(0, 2).c_str(), NULL, 16);
+            }
+            sprintf(buf_c, "%d-%d-%d-%d", uid[0], uid[1], uid[2], uid[3]);
+            header_val = string(buf_c);
+        }
         if (header_name != "" && header_val != "")
             headers[header_name] = header_val;
+    }
+    if (data_to_parse.find("\"invalidate\":1") != string::npos) {
+        string inv_to = "";
+        if (data_to_parse.find("\"access\":0") != string::npos)
+            inv_to = "denied";
+        if (data_to_parse.find("\"access\":1") != string::npos)
+            inv_to = "granted";
+        headers["invalidate-cache"] = inv_to;
     }
     return headers;
 }
